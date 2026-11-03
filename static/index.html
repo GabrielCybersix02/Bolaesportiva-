@@ -1,1 +1,1057 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FORT.BET - Sistema de Apostas</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            red: '#E51C24',
+                            redDark: '#C81018',
+                            bg: '#ECECEC',
+                            cardBg: '#EEEEEE',
+                            textDark: '#111111',
+                            textMuted: '#666666'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #EFEFEF;
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .odd-btn.selected {
+            background-color: #E51C24 !important;
+            color: #ffffff !important;
+            border-color: #C81018 !important;
+        }
+    </style>
+</head>
+<body class="bg-[#EFEFEF] text-brand-textDark min-h-screen flex flex-col items-center">
 
+    <!-- ================= TELA DE LOGIN ================= -->
+    <div id="login-screen" class="fixed inset-0 z-[100] bg-brand-red flex items-center justify-center p-4">
+        <div class="w-full max-w-sm bg-white rounded-md shadow-2xl overflow-hidden">
+            <div class="bg-gray-900 text-white text-center py-5">
+                <h1 class="text-2xl font-black tracking-wider">FORT.BET</h1>
+                <p class="text-[11px] text-gray-400 font-semibold mt-0.5">Acesse sua conta</p>
+            </div>
+            <form class="p-5 space-y-3" onsubmit="doLogin(event)" autocomplete="off">
+                <div>
+                    <label class="text-[11px] font-bold text-gray-600 uppercase">Login</label>
+                    <input type="text" id="login-user" autocapitalize="none" autocomplete="username" class="w-full mt-1 p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-brand-red" placeholder="Seu login">
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-gray-600 uppercase">Senha</label>
+                    <input type="password" id="login-pass" autocomplete="current-password" class="w-full mt-1 p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-brand-red" placeholder="Sua senha">
+                </div>
+                <p id="login-error" class="hidden text-xs font-bold text-red-600"></p>
+                <button type="submit" class="w-full bg-brand-red hover:bg-brand-redDark text-white py-3 rounded font-extrabold text-sm uppercase shadow">
+                    <i class="fa-solid fa-right-to-bracket mr-1"></i> Entrar
+                </button>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- Mobile Frame / Main Container -->
+    <div class="w-full max-w-md bg-white min-h-screen flex flex-col shadow-2xl relative border-x border-gray-200">
+        
+        <!-- Header -->
+        <header class="bg-brand-red text-white px-4 py-3 flex justify-between items-center sticky top-0 z-40 shadow-md">
+            <h1 class="text-xl font-extrabold tracking-wider font-sans cursor-pointer flex items-center gap-2" onclick="navigateTo('home')">
+                <span>FORT.BET</span>
+            </h1>
+            <div class="flex items-center gap-3">
+                <button data-roles="usuario" onclick="toggleBetslipModal()" class="relative text-white p-1 focus:outline-none">
+                    <i class="fa-solid fa-receipt text-xl"></i>
+                    <span id="betslip-badge" class="hidden absolute -top-2 -right-2 bg-yellow-400 text-gray-900 font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-brand-red">0</span>
+                </button>
+                <button onclick="toggleSideMenu()" class="text-white p-1 focus:outline-none hover:opacity-80 transition">
+                    <i class="fa-solid fa-bars text-xl"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Dynamic Main Content -->
+        <main class="flex-1 p-3 pb-24 overflow-y-auto no-scrollbar">
+
+            <!-- ================= HOME VIEW ================= -->
+            <div id="view-home" class="space-y-2">
+                <!-- User Balance Card -->
+                <div class="bg-[#E9E9E9] rounded-sm p-3 shadow-sm border border-gray-300">
+                    <h2 class="text-center font-extrabold text-base tracking-wide text-brand-textDark uppercase mb-0" id="home-nome"></h2>
+                    <p id="home-role" class="text-center text-[11px] font-bold text-brand-red uppercase mb-2"></p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="bg-white rounded-md p-2.5 shadow-sm border border-gray-200">
+                            <span class="text-[11px] font-semibold text-brand-textMuted block leading-tight" id="lbl-saldo-1">Saldo Geral</span>
+                            <span class="text-base font-extrabold text-brand-textDark block mt-0.5" id="home-saldo-geral">R$500,00</span>
+                        </div>
+                        <div class="bg-white rounded-md p-2.5 shadow-sm border border-gray-200">
+                            <span class="text-[11px] font-semibold text-brand-textMuted block leading-tight" id="lbl-saldo-2">Saldo Simples</span>
+                            <span class="text-base font-extrabold text-brand-textDark block mt-0.5" id="home-saldo-simples">R$500,00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navigation List -->
+                <nav class="space-y-2 pt-1">
+                    <button data-roles="admin,cambista" onclick="navigateTo('painel')" class="w-full bg-gray-900 text-white transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-md active:scale-[0.99]">
+                        <i class="fa-solid fa-user-shield text-lg w-6 text-yellow-400 text-center"></i>
+                        <span class="font-bold text-base" id="painel-btn-label">Painel</span>
+                    </button>
+
+                    <button onclick="openModal('recuperar-pin')" class="w-full bg-brand-cardBg hover:bg-gray-300 transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
+                        <i class="fa-solid fa-keyboard text-lg w-6 text-brand-textDark text-center"></i>
+                        <span class="font-bold text-base text-brand-textDark">Recuperar PIN</span>
+                    </button>
+
+                    <button onclick="navigateTo('acumuladao')" class="w-full bg-brand-cardBg hover:bg-gray-300 transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
+                        <i class="fa-solid fa-star text-lg w-6 text-brand-textDark text-center"></i>
+                        <span class="font-bold text-base text-brand-textDark">Acumuladão</span>
+                    </button>
+
+                    <!-- Futebol Shortcut (Highlights Active Sports Area) -->
+                    <button onclick="navigateTo('futebol')" class="w-full bg-brand-red text-white transition-colors rounded-sm px-4 py-3.5 flex items-center justify-between shadow-md active:scale-[0.99]">
+                        <div class="flex items-center gap-3">
+                            <i class="fa-solid fa-futbol text-lg w-6 text-center"></i>
+                            <span class="font-bold text-base">Futebol (Jogos por Dia)</span>
+                        </div>
+                        <span class="bg-white text-brand-red text-[10px] font-black px-2 py-0.5 rounded uppercase">Ao Vivo / Odds</span>
+                    </button>
+
+                    <button onclick="navigateTo('aovivo')" class="w-full bg-brand-cardBg hover:bg-gray-300 transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
+                        <i class="fa-solid fa-video text-lg w-6 text-brand-textDark text-center"></i>
+                        <span class="font-bold text-base text-brand-textDark">Ao Vivo</span>
+                    </button>
+
+                    <div>
+                        <button onclick="toggleMaisEsportes()" class="w-full bg-brand-cardBg hover:bg-gray-300 transition-colors rounded-sm px-4 py-3.5 flex items-center justify-between shadow-sm border border-gray-200">
+                            <div class="flex items-center gap-3">
+                                <i class="fa-solid fa-circle-plus text-lg w-6 text-brand-textDark text-center"></i>
+                                <span class="font-bold text-base text-brand-textDark">Mais Esportes</span>
+                            </div>
+                            <i id="esportes-arrow" class="fa-solid fa-chevron-down text-brand-textDark transition-transform duration-200"></i>
+                        </button>
+                        <div id="esportes-dropdown" class="hidden space-y-1.5 pl-4 pr-1 py-2">
+                            <button onclick="navigateTo('basquete')" class="w-full bg-gray-200 hover:bg-gray-300 p-2.5 rounded-sm flex items-center gap-3 text-sm font-semibold text-gray-800">
+                                <i class="fa-solid fa-basketball w-5 text-center"></i> Basquete
+                            </button>
+                            <button onclick="navigateTo('tenis')" class="w-full bg-gray-200 hover:bg-gray-300 p-2.5 rounded-sm flex items-center gap-3 text-sm font-semibold text-gray-800">
+                                <i class="fa-solid fa-baseball-bat-ball w-5 text-center"></i> Tênis
+                            </button>
+                            <button onclick="navigateTo('mma')" class="w-full bg-gray-200 hover:bg-gray-300 p-2.5 rounded-sm flex items-center gap-3 text-sm font-semibold text-gray-800">
+                                <i class="fa-solid fa-hand-fist w-5 text-center"></i> MMA / Lutas
+                            </button>
+                        </div>
+                    </div>
+
+                    <button onclick="navigateTo('caixa')" class="w-full bg-brand-cardBg hover:bg-gray-300 transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
+                        <i class="fa-solid fa-wallet text-lg w-6 text-brand-textDark text-center"></i>
+                        <span class="font-bold text-base text-brand-textDark">Caixa</span>
+                    </button>
+                    <button onclick="navigateTo('bilhetes')" data-roles="usuario" class="w-full bg-brand-cardBg hover:bg-gray-300 rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
+                        <i class="fa-solid fa-receipt text-lg w-6 text-center"></i><span class="font-bold text-base">Meus Bilhetes</span>
+                    </button>
+                    <button onclick="navigateTo('relatorios')" data-roles="admin,cambista" class="w-full bg-brand-cardBg hover:bg-gray-300 rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
+                        <i class="fa-solid fa-chart-line text-lg w-6 text-center"></i><span class="font-bold text-base">Relatórios / Bilhetes</span>
+                    </button>
+                    <button onclick="logout()" class="w-full bg-red-100 text-brand-red rounded-sm px-4 py-3.5 flex items-center gap-3 text-left font-bold text-base">
+                        <i class="fa-solid fa-right-from-bracket text-lg w-6 text-center"></i> Sair
+                    </button>
+                </nav>
+            </div>
+
+            <!-- ================= FUTEBOL VIEW (DIVIDIDO POR DIAS & ODDS REAIS) ================= -->
+            <div id="view-futebol" class="hidden space-y-3">
+                <!-- Top Nav / Search -->
+                <div class="flex items-center justify-between mb-1">
+                    <button onclick="navigateTo('home')" class="text-xs font-bold text-brand-red flex items-center gap-1">
+                        <i class="fa-solid fa-arrow-left"></i> Voltar ao Menu
+                    </button>
+                    <span id="sport-title" class="text-xs font-extrabold text-gray-600 uppercase">Futebol</span>
+                </div>
+
+                <!-- Feed de Odds (API embutida no código) -->
+                <div class="bg-gray-900 text-white p-3 rounded-sm shadow-md space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-yellow-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-satellite-dish animate-pulse"></i> Feed de Odds em Tempo Real
+                        </span>
+                        <span id="api-status-badge" class="text-[10px] font-black bg-gray-600 text-white px-2 py-0.5 rounded uppercase">Carregando...</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-2">
+                        <span id="api-info" class="text-[10px] text-gray-400 font-semibold">Buscando jogos...</span>
+                        <button onclick="loadMatches(true)" class="bg-brand-red hover:bg-brand-redDark text-white py-1.5 px-3 rounded font-black text-[11px] uppercase flex items-center gap-2 transition whitespace-nowrap">
+                            <i class="fa-solid fa-arrows-rotate" id="refresh-icon"></i> Atualizar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Search Input -->
+                <div class="relative">
+                    <input type="text" id="search-teams" onkeyup="filterGames()" placeholder="Buscar time ou campeonato..." class="w-full pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-sm text-xs font-medium focus:outline-none focus:border-brand-red shadow-sm">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-gray-400 text-xs"></i>
+                </div>
+
+                <!-- Day Filter Tabs (Horizontal Scroll) -->
+                <div class="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-bold" id="day-tabs">
+                    <button onclick="filterByDay('all')" class="day-tab px-3 py-1.5 rounded-sm bg-brand-red text-white shadow-sm whitespace-nowrap active-tab" data-day="all">Todos os Dias</button>
+                    <button onclick="filterByDay('hoje')" class="day-tab px-3 py-1.5 rounded-sm bg-gray-200 text-gray-700 hover:bg-gray-300 whitespace-nowrap" data-day="hoje">Hoje</button>
+                    <button onclick="filterByDay('amanha')" class="day-tab px-3 py-1.5 rounded-sm bg-gray-200 text-gray-700 hover:bg-gray-300 whitespace-nowrap" data-day="amanha">Amanhã</button>
+                    <button onclick="filterByDay('quinta')" class="day-tab px-3 py-1.5 rounded-sm bg-gray-200 text-gray-700 hover:bg-gray-300 whitespace-nowrap" data-day="quinta">Quinta-feira</button>
+                    <button onclick="filterByDay('fim-de-semana')" class="day-tab px-3 py-1.5 rounded-sm bg-gray-200 text-gray-700 hover:bg-gray-300 whitespace-nowrap" data-day="fim-de-semana">Fim de Semana</button>
+                    <button onclick="filterByDay('proximos')" class="day-tab px-3 py-1.5 rounded-sm bg-gray-200 text-gray-700 hover:bg-gray-300 whitespace-nowrap" data-day="proximos">Próximos Dias</button>
+                </div>
+
+                <!-- Matches List Container -->
+                <div id="matches-container" class="space-y-4">
+                    <!-- Dynamic rendering of games divided by day -->
+                </div>
+            </div>
+
+            <!-- ================= CAIXA VIEW ================= -->
+            <div id="view-caixa" class="hidden space-y-3">
+                <div class="flex items-center justify-between mb-2">
+                    <button onclick="navigateTo('home')" class="text-sm font-bold text-brand-red flex items-center gap-1">
+                        <i class="fa-solid fa-arrow-left"></i> Voltar ao Menu
+                    </button>
+                    <span class="text-xs font-semibold text-gray-500">Financeiro</span>
+                </div>
+
+                <div class="bg-brand-red text-white p-2.5 rounded-sm text-center shadow-sm">
+                    <h2 class="font-extrabold text-base tracking-wide" id="caixa-title">Caixa</h2>
+                </div>
+
+                <div class="space-y-2">
+                    <div class="bg-brand-cardBg p-2.5 rounded-sm text-center border border-gray-200">
+                        <span class="text-xs font-semibold text-gray-700 block">Entradas</span>
+                        <span class="text-xl font-extrabold text-brand-textDark block mt-0.5" id="caixa-entradas">R$ 0,00</span>
+                    </div>
+                    <div class="bg-brand-cardBg p-2.5 rounded-sm text-center border border-gray-200">
+                        <span class="text-xs font-semibold text-gray-700 block">Entradas em aberto</span>
+                        <span class="text-xl font-extrabold text-brand-textDark block mt-0.5" id="caixa-aberto">R$ 0,00</span>
+                    </div>
+                    <div class="bg-brand-cardBg p-2.5 rounded-sm text-center border border-gray-200">
+                        <span class="text-xs font-semibold text-gray-700 block">Saídas</span>
+                        <span class="text-xl font-extrabold text-brand-textDark block mt-0.5">R$ 0,00</span>
+                    </div>
+                    <div class="bg-brand-cardBg p-2.5 rounded-sm text-center border border-gray-200">
+                        <span class="text-xs font-semibold text-gray-700 block">Lançamentos</span>
+                        <span class="text-xl font-extrabold text-brand-textDark block mt-0.5">R$ 0,00</span>
+                    </div>
+                    <div class="bg-brand-cardBg p-2.5 rounded-sm text-center border border-gray-200">
+                        <span class="text-xs font-semibold text-gray-700 block">Comissões</span>
+                        <span class="text-xl font-extrabold text-brand-textDark block mt-0.5">R$ 0,00</span>
+                    </div>
+                    <div class="bg-brand-cardBg p-2.5 rounded-sm text-center border border-gray-200">
+                        <span class="text-xs font-semibold text-gray-700 block">Total</span>
+                        <span class="text-xl font-extrabold text-brand-textDark block mt-0.5">R$0,00</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-center gap-2 py-2">
+                    <input type="checkbox" id="mostrarApostas" class="w-4 h-4 text-brand-red rounded border-gray-400 focus:ring-brand-red" checked>
+                    <label for="mostrarApostas" class="text-sm font-semibold text-brand-textDark">Mostrar apostas em aberto</label>
+                </div>
+
+                <div class="bg-brand-red text-white p-2.5 rounded-sm text-center shadow-sm mt-3">
+                    <h3 class="font-extrabold text-base tracking-wide">Lançamentos de Caixa</h3>
+                </div>
+
+                <div class="bg-brand-red text-white py-2 px-3 rounded-sm flex text-xs font-bold uppercase tracking-wider text-center">
+                    <div class="w-1/4">DATA</div>
+                    <div class="w-1/4">VALOR</div>
+                    <div class="w-2/4">DESCRIÇÃO</div>
+                </div>
+
+                <div id="tabela-lancamentos" class="bg-white rounded-sm border border-gray-200 text-center py-6 text-xs text-gray-500 font-medium">
+                    Nenhum lançamento encontrado para o período.
+                </div>
+            </div>
+
+            <!-- ================= PAINEL ADM / CAMBISTA ================= -->
+            <div id="view-painel" class="hidden space-y-3"></div>
+
+            <!-- ================= GENERIC MODULE VIEW ================= -->
+            <div id="view-generic" class="hidden space-y-3">
+                <div class="flex items-center justify-between mb-2">
+                    <button onclick="navigateTo('home')" class="text-sm font-bold text-brand-red flex items-center gap-1">
+                        <i class="fa-solid fa-arrow-left"></i> Voltar
+                    </button>
+                    <span id="generic-category" class="text-xs font-semibold text-gray-500">Módulo</span>
+                </div>
+
+                <div class="bg-brand-red text-white p-3 rounded-sm text-center shadow-sm">
+                    <h2 id="generic-title" class="font-extrabold text-lg tracking-wide uppercase">TÍTULO</h2>
+                </div>
+
+                <div id="generic-content" class="bg-white p-4 rounded-sm border border-gray-200 shadow-sm space-y-3">
+                    <!-- Dynamic Content -->
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Dynamic Floating Betslip Footer Bar -->
+        <div id="betslip-bar" data-roles="usuario" onclick="toggleBetslipModal()" class="fixed bottom-0 max-w-md w-full bg-gray-900 text-white p-3 border-t-2 border-brand-red cursor-pointer flex justify-between items-center shadow-2xl z-40">
+            <div class="flex items-center gap-3">
+                <div class="bg-brand-red font-black text-xs px-2.5 py-1 rounded" id="bar-count">0</div>
+                <div>
+                    <span class="text-xs font-bold text-gray-300 block">Bilhete de Aposta</span>
+                    <span class="text-xs font-black text-yellow-400" id="bar-possible-win">Retorno: R$ 0,00</span>
+                </div>
+            </div>
+            <button class="bg-brand-red text-white px-4 py-1.5 rounded font-extrabold text-xs uppercase hover:bg-brand-redDark transition">
+                Ver Bilhete <i class="fa-solid fa-chevron-up ml-1"></i>
+            </button>
+        </div>
+
+        <!-- Sidebar / Drawer Menu -->
+        <div id="sidebar-overlay" onclick="toggleSideMenu()" class="fixed inset-0 bg-black/60 z-50 hidden transition-opacity"></div>
+        <aside id="sidebar-drawer" class="fixed top-0 right-0 h-full w-64 bg-white z-50 transform translate-x-full transition-transform duration-300 shadow-2xl flex flex-col">
+            <div class="bg-brand-red p-4 text-white flex justify-between items-center">
+                <span class="font-black text-lg tracking-wider">FORT.BET</span>
+                <button onclick="toggleSideMenu()" class="text-white hover:opacity-80">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            <div class="p-4 border-b border-gray-100 bg-gray-50">
+                <p class="text-xs text-gray-500 font-medium">Usuário Logado</p>
+                <p class="font-extrabold text-brand-textDark text-base" id="sidebar-user"></p>
+                <p class="text-[10px] font-bold text-brand-red uppercase" id="sidebar-role"></p>
+            </div>
+            <div class="flex-1 p-2 space-y-1 overflow-y-auto">
+                <button onclick="navigateTo('home'); toggleSideMenu();" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
+                    <i class="fa-solid fa-house text-brand-red w-5"></i> Início
+                </button>
+                <button onclick="navigateTo('futebol'); toggleSideMenu();" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
+                    <i class="fa-solid fa-futbol text-brand-red w-5"></i> Futebol por Dia
+                </button>
+                <button onclick="navigateTo('caixa'); toggleSideMenu();" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
+                    <i class="fa-solid fa-wallet text-brand-red w-5"></i> Caixa
+                </button>
+                <button onclick="navigateTo('bilhetes'); toggleSideMenu();" data-roles="usuario" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
+                    <i class="fa-solid fa-receipt text-brand-red w-5"></i> Meus Bilhetes
+                </button>
+                <button onclick="navigateTo('relatorios'); toggleSideMenu();" data-roles="admin,cambista" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
+                    <i class="fa-solid fa-chart-line text-brand-red w-5"></i> Relatórios
+                </button>
+                <button onclick="openModal('regulamento'); toggleSideMenu();" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
+                    <i class="fa-solid fa-file-contract text-brand-red w-5"></i> Regulamento
+                </button>
+                <button onclick="openModal('mudar-senha'); toggleSideMenu();" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
+                    <i class="fa-solid fa-key text-brand-red w-5"></i> Mudar Senha
+                </button>
+                <button onclick="navigateTo('painel'); toggleSideMenu();" data-roles="admin,cambista" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
+                    <i class="fa-solid fa-user-gear text-brand-red w-5"></i> Painel de Gestão
+                </button>
+            </div>
+            <div class="p-4 border-t border-gray-200">
+                <button onclick="toggleSideMenu(); logout();" class="w-full bg-red-100 text-brand-red hover:bg-red-200 py-2.5 rounded font-bold text-sm flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-right-from-bracket"></i> Sair do Sistema
+                </button>
+            </div>
+        </aside>
+
+        <!-- BETSLIP MODAL -->
+        <div id="betslip-modal" class="fixed inset-0 bg-black/70 z-50 hidden flex flex-col justify-end items-center">
+            <div class="bg-white w-full max-w-md rounded-t-xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
+                <div class="bg-brand-red text-white p-3.5 flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-receipt text-lg"></i>
+                        <h3 class="font-extrabold text-base uppercase">Bilhete de Aposta</h3>
+                    </div>
+                    <button onclick="toggleBetslipModal()" class="text-white hover:opacity-80">
+                        <i class="fa-solid fa-xmark text-xl"></i>
+                    </button>
+                </div>
+
+                <!-- Betslip Selections List -->
+                <div id="betslip-items" class="p-3 overflow-y-auto space-y-2 flex-1 max-h-60 bg-gray-50">
+                    <!-- Items inserted via JS -->
+                </div>
+
+                <!-- Betslip Betting Form -->
+                <div class="p-3 bg-white border-t border-gray-200 space-y-2.5">
+                    <div class="flex justify-between items-center text-xs font-bold text-gray-700">
+                        <span>Cotação Total (Odd):</span>
+                        <span id="betslip-total-odd" class="text-sm font-black text-brand-red">1.00</span>
+                    </div>
+
+                    <div>
+                        <label class="text-[11px] font-bold text-gray-600 block mb-1">Valor da Aposta (R$):</label>
+                        <input type="number" id="betslip-stake" value="10" min="1" oninput="updateBetslipCalculations()" class="w-full p-2 border border-gray-300 rounded font-bold text-sm text-gray-800 focus:outline-none focus:border-brand-red">
+                    </div>
+
+                    <div class="bg-gray-100 p-2.5 rounded-sm flex justify-between items-center text-xs font-extrabold">
+                        <span class="text-gray-700">Retorno Possível:</span>
+                        <span id="betslip-payout" class="text-sm text-emerald-600">R$ 0,00</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 pt-1">
+                        <button onclick="clearBetslip()" class="w-full bg-gray-200 text-gray-700 py-2.5 rounded font-bold text-xs uppercase hover:bg-gray-300">
+                            Limpar
+                        </button>
+                        <button onclick="confirmBet()" class="w-full bg-brand-red text-white py-2.5 rounded font-extrabold text-xs uppercase hover:bg-brand-redDark shadow">
+                            Confirmar Aposta
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- GENERIC MODAL -->
+        <div id="modal-container" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
+            <div class="bg-white w-full max-w-sm rounded-md shadow-2xl overflow-hidden border border-gray-300">
+                <div class="bg-brand-red text-white px-4 py-3 flex justify-between items-center">
+                    <h3 id="modal-title" class="font-extrabold text-base uppercase">TÍTULO MODAL</h3>
+                    <button onclick="closeModal()" class="text-white hover:opacity-80">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+                <div id="modal-body" class="p-4 space-y-3">
+                    <!-- Modal Content -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // ===================== CONFIG DA API (embutida) =====================
+        const API = '/api';
+        let betslip = [];
+        let currentDayFilter = 'all';
+        let matchesData = [];
+
+        const DAY_TITLES = { hoje: "Hoje", amanha: "Amanhã", quinta: "Quinta-feira", "fim-de-semana": "Fim de Semana", proximos: "Próximos Dias" };
+        const DAY_ORDER = ["hoje", "amanha", "quinta", "fim-de-semana", "proximos"];
+
+        function setStatus(text, color, info) {
+            const badge = document.getElementById('api-status-badge');
+            badge.innerText = text;
+            badge.className = `text-[10px] font-black ${color} text-white px-2 py-0.5 rounded uppercase`;
+            if (info !== undefined) document.getElementById('api-info').innerText = info;
+        }
+
+        function startOfDay(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+
+        function getDayId(date) {
+            const diff = Math.round((startOfDay(date) - startOfDay(new Date())) / 86400000);
+            if (diff <= 0) return "hoje";
+            if (diff === 1) return "amanha";
+            if (date.getDay() === 4) return "quinta";
+            if (date.getDay() === 6 || date.getDay() === 0) return "fim-de-semana";
+            return "proximos";
+        }
+
+        function formatTime(date, dayId) {
+            const t = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            if (dayId === "fim-de-semana" || dayId === "proximos") {
+                const wd = date.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+                const dm = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                return `${wd.charAt(0).toUpperCase() + wd.slice(1)} ${dm} ${t}`;
+            }
+            return t;
+        }
+
+        function leagueFlag(key) {
+            const map = { brazil: "🇧🇷", epl: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", england: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", spain: "🇪🇸", italy: "🇮🇹", germany: "🇩🇪", france: "🇫🇷", portugal: "🇵🇹", netherlands: "🇳🇱", argentina: "🇦🇷", usa: "🇺🇸", mexico: "🇲🇽", turkey: "🇹🇷", belgium: "🇧🇪", scotland: "🏴󠁧󠁢󠁳󠁣󠁴󠁿", uefa: "🇪🇺", conmebol: "🌎", fifa: "🌍" };
+            for (const k in map) if (key.includes(k)) return map[k];
+            return "⚽";
+        }
+
+        let currentSport = 'futebol', LOGOS = {};
+        function buildMatchesData(events) {
+            const days = {};
+            events.forEach(ev => {
+                const date = new Date(ev.commence), dayId = getDayId(date);
+                if (!days[dayId]) days[dayId] = {};
+                const lg = ev.league;
+                if (!days[dayId][lg]) days[dayId][lg] = { name: ev.league, flag: leagueFlag(ev.key), matches: [] };
+                days[dayId][lg].matches.push({ id: ev.id, home: ev.home, away: ev.away, time: formatTime(date, dayId), ts: date.getTime(), started: ev.started, odds: ev.odds });
+            });
+            return DAY_ORDER.filter(d => days[d]).map(d => ({ dayId: d, dayTitle: DAY_TITLES[d],
+                leagues: Object.values(days[d]).map(l => { l.matches.sort((x, y) => x.ts - y.ts); return l; }) }));
+        }
+        async function loadMatches(force) {
+            const icon = document.getElementById('refresh-icon'); icon.classList.add('fa-spin');
+            setStatus("Carregando...", "bg-gray-600", "Buscando jogos...");
+            try {
+                const r = await api('/odds?grupo=' + currentSport + (force ? '&force=1' : ''));
+                if (!r.ok) throw new Error(r.msg || 'Falha na API de odds.');
+                LOGOS = Object.assign(LOGOS, r.logos || {});
+                matchesData = buildMatchesData(r.events);
+                const total = r.events.length, hora = new Date(r.updated * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                setStatus("Ao Vivo", "bg-emerald-600", `${total} jogos • atualizado às ${hora}`);
+                refreshLogos(r.events, 0);
+            } catch (err) { matchesData = []; setStatus("Erro na API", "bg-red-600", err.message); }
+            finally { icon.classList.remove('fa-spin'); renderMatches(document.getElementById('search-teams').value); }
+        }
+        // logos sao resolvidas em segundo plano no servidor; busca de novo algumas vezes
+        async function refreshLogos(events, n) {
+            const names = [...new Set(events.flatMap(e => [e.home, e.away]))].filter(x => !(x in LOGOS));
+            if (!names.length || n > 5) return;
+            setTimeout(async () => {
+                const r = await api('/logos', { names }); if (!r.ok) return;
+                const before = Object.keys(LOGOS).length; Object.assign(LOGOS, r.logos);
+                if (Object.keys(LOGOS).length > before) renderMatches(document.getElementById('search-teams').value);
+                refreshLogos(events, n + 1);
+            }, 6000);
+        }
+        function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;'); }
+        function crest(name) {
+            let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) | 0;
+            const ini = name.split(/\s+/).filter(w => w.length > 1).slice(0, 2).map(w => w[0]).join('').toUpperCase() || name[0];
+            const fb = `<span style="background:hsl(${Math.abs(h) % 360},55%,42%)" class="w-8 h-8 rounded-full text-white text-[11px] font-black flex items-center justify-center shrink-0 shadow-inner">${esc(ini)}</span>`;
+            if (!LOGOS[name]) return fb;
+            return `<span class="relative w-8 h-8 shrink-0"><img src="${esc(LOGOS[name])}/tiny" onerror="this.onerror=null;this.src='${esc(LOGOS[name])}'" alt="" loading="lazy" class="w-8 h-8 object-contain"></span>`;
+        }
+        function oddButton(m, market, label, caption) {
+            const odd = m.odds[market];
+            if (odd == null) return `<div class="rounded-lg py-2 text-center bg-gray-100 text-gray-300 text-xs font-bold">-</div>`;
+            const sel = isSelected(String(m.id), label), name = esc(`${m.home} x ${m.away}`);
+            if (m.started) return `<div class="rounded-lg py-2 text-center bg-gray-100 text-gray-400"><span class="block text-[9px] font-bold uppercase">${caption}</span><span class="block text-sm font-black">${Number(odd).toFixed(2)}</span></div>`;
+            return `<button onclick="toggleSelectOdd('${esc(m.id)}', '${name}', '${label}', ${odd})" class="rounded-lg py-2 text-center transition active:scale-95 ${sel ? 'bg-brand-red text-white shadow-md' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'}">
+                <span class="block text-[9px] font-bold uppercase ${sel ? 'text-white/80' : 'text-gray-500'}">${caption}</span><span class="block text-sm font-black">${Number(odd).toFixed(2)}</span></button>`;
+        }
+        function matchCard(m) {
+            const x = m.odds.X != null;
+            return `<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-3">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-[10px] font-bold ${m.started ? 'text-brand-red' : 'text-gray-500'} uppercase flex items-center gap-1">${m.started ? '<i class="fa-solid fa-circle text-[6px] animate-pulse"></i> Em andamento' : '<i class="fa-regular fa-clock"></i> ' + m.time}</span>
+                    <span class="text-[10px] text-gray-400 font-semibold">${m.started ? 'Apostas encerradas' : ''}</span></div>
+                <div class="space-y-1.5 mb-3">
+                    <div class="flex items-center gap-2.5">${crest(m.home)}<span class="text-sm font-bold text-gray-900 truncate">${esc(m.home)}</span></div>
+                    <div class="flex items-center gap-2.5">${crest(m.away)}<span class="text-sm font-bold text-gray-900 truncate">${esc(m.away)}</span></div></div>
+                <div class="grid ${x ? 'grid-cols-3' : 'grid-cols-2'} gap-2">${oddButton(m, '1', '1', 'Casa')}${x ? oddButton(m, 'X', 'X', 'Empate') : ''}${oddButton(m, '2', '2', 'Fora')}</div></div>`;
+        }
+        function renderMatches(searchTerm) {
+            const container = document.getElementById('matches-container'), q = (searchTerm || '').toLowerCase().trim();
+            let html = '';
+            matchesData.forEach(day => {
+                if (currentDayFilter !== 'all' && currentDayFilter !== day.dayId) return;
+                let lh = '', cnt = 0;
+                day.leagues.forEach(league => {
+                    const list = league.matches.filter(m => !q || (m.home + ' ' + m.away + ' ' + league.name).toLowerCase().includes(q));
+                    if (!list.length) return; cnt += list.length;
+                    lh += `<div class="space-y-2"><div class="flex items-center gap-2 px-1 pt-1 text-[11px] font-extrabold text-gray-700 uppercase"><span class="text-base">${league.flag}</span><span>${esc(league.name)}</span></div>${list.map(matchCard).join('')}</div>`;
+                });
+                if (!cnt) return;
+                html += `<div class="space-y-2"><button onclick="toggleDaySection('${day.dayId}')" class="w-full bg-brand-red text-white px-3 py-2.5 rounded-lg flex justify-between items-center shadow-sm">
+                    <span class="text-xs font-extrabold uppercase">${day.dayTitle} <span class="font-semibold opacity-80">(${cnt})</span></span>
+                    <i id="arrow-${day.dayId}" class="fa-solid fa-chevron-down text-xs transition-transform"></i></button>
+                    <div id="content-${day.dayId}" class="space-y-4">${lh}</div></div>`;
+            });
+            container.innerHTML = html || `<div class="text-center py-10 text-gray-400 text-xs font-semibold"><i class="fa-solid fa-futbol text-3xl mb-2 opacity-40"></i><p>Nenhum jogo encontrado.</p></div>`;
+        }
+
+        // Toggle Day Collapsible
+        function toggleDaySection(dayId) {
+            const content = document.getElementById(`content-${dayId}`);
+            const arrow = document.getElementById(`arrow-${dayId}`);
+            if (content) {
+                content.classList.toggle('hidden');
+                arrow.classList.toggle('rotate-180');
+            }
+        }
+
+        // Filter by Day Tabs
+        function filterByDay(dayKey) {
+            currentDayFilter = dayKey;
+            document.querySelectorAll('.day-tab').forEach(btn => {
+                if (btn.dataset.day === dayKey) {
+                    btn.className = "day-tab px-3 py-1.5 rounded-sm bg-brand-red text-white shadow-sm whitespace-nowrap font-bold";
+                } else {
+                    btn.className = "day-tab px-3 py-1.5 rounded-sm bg-gray-200 text-gray-700 hover:bg-gray-300 whitespace-nowrap font-bold";
+                }
+            });
+            const searchVal = document.getElementById('search-teams').value;
+            renderMatches(searchVal);
+        }
+
+        function filterGames() {
+            const searchVal = document.getElementById('search-teams').value;
+            renderMatches(searchVal);
+        }
+
+        // Betslip Add/Remove Logic
+        function isSelected(matchId, market) {
+            return betslip.some(item => item.matchId === matchId && item.market === market);
+        }
+
+        function toggleSelectOdd(matchId, matchName, market, odd) {
+            const _u = me();
+            if (!_u || _u.role !== 'usuario') { showToast('Somente usuários podem apostar.', 'err'); return; }
+            const existingIndex = betslip.findIndex(item => item.matchId === matchId && item.market === market);
+            if (existingIndex > -1) {
+                betslip.splice(existingIndex, 1);
+            } else {
+                // Remove any existing selection from the same match (1 per match)
+                betslip = betslip.filter(item => item.matchId !== matchId);
+                betslip.push({ matchId, matchName, market, odd });
+            }
+            updateBetslipUI();
+            renderMatches(document.getElementById('search-teams').value);
+        }
+
+        function removeFromBetslip(index) {
+            betslip.splice(index, 1);
+            updateBetslipUI();
+            renderMatches(document.getElementById('search-teams').value);
+        }
+
+        function clearBetslip() {
+            betslip = [];
+            updateBetslipUI();
+            renderMatches(document.getElementById('search-teams').value);
+        }
+
+        function updateBetslipUI() {
+            const badge = document.getElementById('betslip-badge');
+            const barCount = document.getElementById('bar-count');
+            const itemsContainer = document.getElementById('betslip-items');
+            
+            // Badge & Bar count
+            badge.innerText = betslip.length;
+            barCount.innerText = betslip.length;
+            if (betslip.length > 0) {
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+
+            // Render Items in Betslip Modal
+            if (betslip.length === 0) {
+                itemsContainer.innerHTML = `
+                    <div class="text-center py-8 text-gray-400 text-xs font-semibold">
+                        <i class="fa-solid fa-receipt text-3xl mb-2 opacity-40"></i>
+                        <p>Nenhuma aposta selecionada.</p>
+                        <p class="text-[10px] text-gray-400 mt-0.5">Clique nas odds dos jogos para adicionar ao bilhete.</p>
+                    </div>
+                `;
+            } else {
+                let html = '';
+                betslip.forEach((item, index) => {
+                    html += `
+                        <div class="bg-white p-2.5 rounded border border-gray-200 flex justify-between items-center shadow-sm">
+                            <div>
+                                <p class="text-[10px] font-bold text-gray-500">${item.matchName}</p>
+                                <p class="text-xs font-extrabold text-brand-red">${item.market}</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="bg-gray-100 text-gray-800 text-xs font-black px-2 py-1 rounded border">${item.odd.toFixed(2)}</span>
+                                <button onclick="removeFromBetslip(${index})" class="text-gray-400 hover:text-brand-red p-1">
+                                    <i class="fa-solid fa-trash-can text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+                itemsContainer.innerHTML = html;
+            }
+
+            updateBetslipCalculations();
+        }
+
+        function updateBetslipCalculations() {
+            const totalOddEl = document.getElementById('betslip-total-odd');
+            const payoutEl = document.getElementById('betslip-payout');
+            const barWinEl = document.getElementById('bar-possible-win');
+            const stakeInput = document.getElementById('betslip-stake');
+
+            let totalOdd = 1.00;
+            if (betslip.length > 0) {
+                totalOdd = betslip.reduce((acc, curr) => acc * curr.odd, 1.00);
+            } else {
+                totalOdd = 0.00;
+            }
+
+            const stake = parseFloat(stakeInput.value) || 0;
+            const possibleWin = stake * totalOdd;
+
+            totalOddEl.innerText = totalOdd > 0 ? totalOdd.toFixed(2) : '1.00';
+            payoutEl.innerText = `R$ ${possibleWin.toFixed(2)}`;
+            barWinEl.innerText = `Retorno: R$ ${possibleWin.toFixed(2)}`;
+        }
+
+        async function confirmBet() {
+            const u = me();
+            if (!u || u.role !== 'usuario') { showToast('Somente usuários podem apostar.', 'err'); return; }
+            if (!betslip.length) { showToast('Adicione pelo menos uma seleção ao bilhete.', 'err'); return; }
+            const r = await api('/bets', { valor: parseFloat(document.getElementById('betslip-stake').value) || 0, selecoes: betslip.map(s => ({ matchId: s.matchId, market: s.market })) });
+            if (!r.ok) { showToast(r.msg, 'err'); return; }
+            showToast(`Bilhete confirmado! Retorno possível: ${money(r.retorno)}`);
+            clearBetslip(); toggleBetslipModal(); await loadState(); refreshHome();
+        }
+
+        function toggleBetslipModal() {
+            const modal = document.getElementById('betslip-modal');
+            modal.classList.toggle('hidden');
+        }
+
+        const SPORTS = { futebol: 'Futebol', aovivo: 'Ao Vivo / Começando', basquete: 'Basquete', tenis: 'Tênis', mma: 'MMA / Lutas' };
+        async function navigateTo(viewName) {
+            ['home', 'futebol', 'caixa', 'painel', 'generic'].forEach(v => document.getElementById('view-' + v).classList.add('hidden'));
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            if (viewName !== 'home' && viewName !== 'painel') await loadState();
+            if (viewName === 'home') { document.getElementById('view-home').classList.remove('hidden'); await loadState(); refreshHome(); }
+            else if (viewName === 'painel') { document.getElementById('view-painel').classList.remove('hidden'); await loadState(); renderPainel(); }
+            else if (viewName === 'caixa') { document.getElementById('view-caixa').classList.remove('hidden'); renderCaixa(); }
+            else if (SPORTS[viewName]) {
+                currentSport = viewName; document.getElementById('sport-title').textContent = SPORTS[viewName];
+                document.getElementById('view-futebol').classList.remove('hidden'); loadMatches(false);
+            } else {
+                document.getElementById('view-generic').classList.remove('hidden');
+                await renderGeneric(viewName);
+            }
+        }
+        function gcard(rows) { return rows; }
+        async function renderGeneric(v) {
+            const T = document.getElementById('generic-title'), C = document.getElementById('generic-category'), B = document.getElementById('generic-content');
+            const u = me(); const row = (a, b, cls) => `<div class="flex justify-between border-b pb-2"><span>${a}</span><span class="font-bold ${cls || ''}">${b}</span></div>`;
+            if (v === 'relatorios') {
+                C.innerText = 'Gestão'; T.innerText = 'Relatórios / Bilhetes';
+                const r = await api('/relatorios'); if (!r.ok) { B.innerHTML = esc(r.msg); return; }
+                const open = DB.tickets.filter(t => t.status === 'aberto');
+                B.innerHTML = `<div class="space-y-2 text-xs font-medium text-gray-700">${row('Bilhetes vendidos hoje:', r.hoje)}${row('Total apostado:', money(r.bruto), 'text-emerald-600')}${row('Prêmios pagos:', money(r.premios), 'text-red-600')}${row('Bilhetes em aberto:', r.abertos)}${r.comissao != null ? row('Minha comissão:', money(r.comissao), 'text-blue-600') : ''}</div>
+                    <p class="text-xs font-extrabold uppercase pt-2">Bilhetes em aberto</p>${open.length ? open.map(t => ticketHtml(t, true)).join('') : '<p class="text-xs text-gray-400 text-center py-3">Nenhum bilhete em aberto.</p>'}`;
+            } else if (v === 'bilhetes') {
+                C.innerText = 'Apostas'; T.innerText = 'Meus Bilhetes';
+                const l = DB.tickets.filter(t => t.userId === u.id);
+                B.innerHTML = l.length ? l.map(t => ticketHtml(t, false)).join('') : '<p class="text-xs text-gray-400 text-center py-4">Você ainda não fez apostas.</p>';
+            } else if (v === 'acumuladao') {
+                C.innerText = 'Apostas Especiais'; T.innerText = 'Acumuladão';
+                if (!matchesData.length || currentSport !== 'futebol') { currentSport = 'futebol'; await loadMatches(false); }
+                const fav = matchesData.flatMap(d => d.leagues.flatMap(l => l.matches)).filter(m => !m.started).map(m => { const k = m.odds['1'] <= m.odds['2'] ? '1' : '2'; return { m, k, o: m.odds[k] }; }).sort((a, b) => a.o - b.o).slice(0, 4);
+                const odd = fav.reduce((a, f) => a * f.o, 1);
+                B.innerHTML = fav.length ? `<p class="text-xs font-semibold text-gray-700">Combo dos 4 maiores favoritos do momento:</p>${fav.map(f => `<div class="flex justify-between text-xs border rounded p-2 bg-gray-50"><span class="font-bold">${esc(f.m.home)} x ${esc(f.m.away)} <span class="text-brand-red">(${f.k})</span></span><b>${f.o.toFixed(2)}</b></div>`).join('')}
+                    <p class="text-sm font-black text-brand-red text-right">Odd total ${odd.toFixed(2)}</p>
+                    <button onclick='addCombo(${JSON.stringify(fav.map(f => [f.m.id, f.m.home + " x " + f.m.away, f.k, f.o]))})' class="w-full bg-brand-red text-white py-2 rounded font-extrabold text-xs uppercase">Adicionar ao bilhete</button>` : '<p class="text-xs text-gray-400 text-center">Sem jogos disponíveis agora.</p>';
+            }
+        }
+        function addCombo(l) {
+            if (me().role !== 'usuario') { showToast('Somente usuários podem apostar.', 'err'); return; }
+            betslip = l.map(([matchId, matchName, market, odd]) => ({ matchId, matchName, market, odd })); updateBetslipUI(); toggleBetslipModal();
+        }
+        const ST = { aberto: ['Em aberto', 'bg-yellow-100 text-yellow-800'], ganhou: ['Ganhou', 'bg-emerald-100 text-emerald-700'], perdeu: ['Perdeu', 'bg-red-100 text-red-700'], cancelado: ['Cancelado', 'bg-gray-200 text-gray-600'] };
+        function ticketHtml(t, manage) {
+            const d = new Date(t.data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+            return `<div class="border rounded p-2.5 bg-gray-50 text-xs space-y-1"><div class="flex justify-between"><b>#${t.id}${manage ? ' • ' + esc(userName(t.userId)) : ''}</b><span class="text-[10px] font-black px-1.5 py-0.5 rounded ${ST[t.status][1]}">${ST[t.status][0]}</span></div>
+                ${t.selecoes.map(s => `<div class="flex justify-between text-[11px]"><span>${esc(s.jogo)} <b class="text-brand-red">(${esc(s.mercado)})</b></span><span>${Number(s.odd).toFixed(2)}</span></div>`).join('')}
+                <div class="flex justify-between text-[11px] text-gray-600 pt-1 border-t"><span>${d} • Aposta ${money(t.valor)} • Odd ${t.odd.toFixed(2)}</span><b>Retorno ${money(t.retorno)}</b></div>
+                ${manage ? `<div class="grid grid-cols-3 gap-1 pt-1">${[['ganhou', 'bg-emerald-600', 'Ganhou'], ['perdeu', 'bg-red-600', 'Perdeu'], ['cancelado', 'bg-gray-600', 'Anular']].map(([r, c, n]) => `<button onclick="settleTicket('${t.id}','${r}')" class="${c} text-white rounded py-1 text-[10px] font-black uppercase">${n}</button>`).join('')}</div>` : ''}</div>`;
+        }
+        async function settleTicket(id, resultado) {
+            if (!confirm('Confirmar resultado do bilhete #' + id + '?')) return;
+            const r = await api('/tickets/' + id + '/settle', { resultado }); if (!r.ok) { showToast(r.msg, 'err'); return; }
+            showToast('Bilhete atualizado.'); await loadState(); renderGeneric('relatorios');
+        }
+
+        // Toggle Accordions and Side Menu
+        function toggleMaisEsportes() {
+            const dropdown = document.getElementById('esportes-dropdown');
+            const arrow = document.getElementById('esportes-arrow');
+            dropdown.classList.toggle('hidden');
+            arrow.classList.toggle('rotate-180');
+        }
+
+        function toggleSideMenu() {
+            const overlay = document.getElementById('sidebar-overlay');
+            const drawer = document.getElementById('sidebar-drawer');
+            if (drawer.classList.contains('translate-x-full')) {
+                overlay.classList.remove('hidden');
+                drawer.classList.remove('translate-x-full');
+            } else {
+                overlay.classList.add('hidden');
+                drawer.classList.add('translate-x-full');
+            }
+        }
+
+        // Modals Controller
+        function openModal(modalType) {
+            const modal = document.getElementById('modal-container');
+            const title = document.getElementById('modal-title');
+            const body = document.getElementById('modal-body');
+
+            modal.classList.remove('hidden');
+
+            if (modalType === 'recuperar-pin') {
+                title.innerText = 'Recuperar Senha / PIN';
+                body.innerHTML = `<p class="text-xs text-gray-600">Para redefinir sua senha, peça ao seu cambista (usuários) ou ao ADM (cambistas). Eles podem definir uma nova senha pelo painel. Depois você pode trocá-la em <b>Mudar Senha</b>.</p>
+                    <button onclick="closeModal()" class="w-full bg-gray-800 text-white py-2 font-bold text-xs uppercase mt-2">Entendi</button>`;
+            } else if (modalType === 'regulamento') {
+                title.innerText = 'Regulamento';
+                body.innerHTML = `
+                    <div class="text-xs text-gray-700 space-y-2 max-h-60 overflow-y-auto p-1">
+                        <p class="font-bold">1. Regras de Apostas</p>
+                        <p>Todas as apostas são válidas apenas para o tempo regulamentar (90 minutos mais acréscimos).</p>
+                        <p class="font-bold">2. Cancelamento</p>
+                        <p>Jogos adiados em mais de 48h terão as apostas anuladas e o valor devolvido.</p>
+                    </div>
+                    <button onclick="closeModal()" class="w-full bg-gray-800 text-white py-2 font-bold text-xs uppercase mt-2">
+                        Entendi
+                    </button>
+                `;
+            } else if (modalType === 'mudar-senha') {
+                title.innerText = 'Mudar Senha';
+                body.innerHTML = `
+                    <div class="space-y-2">
+                        <input type="password" id="pw-atual" placeholder="Senha Atual" autocomplete="current-password" class="w-full p-2 border border-gray-300 rounded text-xs">
+                        <input type="password" id="pw-nova" placeholder="Nova Senha (mín. 4 caracteres)" autocomplete="new-password" class="w-full p-2 border border-gray-300 rounded text-xs">
+                        <input type="password" id="pw-conf" placeholder="Confirmar Nova Senha" autocomplete="new-password" class="w-full p-2 border border-gray-300 rounded text-xs">
+                        <button onclick="changePassword()" class="w-full bg-brand-red text-white py-2 font-bold text-xs uppercase mt-1 shadow">
+                            Salvar Nova Senha
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('modal-container').classList.add('hidden');
+        }
+
+
+        // ===================== LOGIN / PERFIS (tudo via API) =====================
+        const ROLE_LABEL = { admin: "ADM", cambista: "Cambista", usuario: "Usuário" };
+        let DB = { users: [], transactions: [], tickets: [], comissao: 0 };
+        let sessionId = null, matchesLoaded = false;
+        async function api(path, body) {
+            try {
+                const r = await fetch(API + path, body === undefined ? { credentials: 'same-origin' } : { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                const j = await r.json().catch(() => ({ ok: false, msg: 'Resposta inválida do servidor.' }));
+                if (r.status === 401 && sessionId) { sessionId = null; showLogin(); }
+                return j;
+            } catch (e) { return { ok: false, msg: 'Sem conexão com o servidor.' }; }
+        }
+        async function loadState() { const r = await api('/state'); if (r.ok) { DB = r; } return r.ok; }
+        function me() { return sessionId ? DB.users.find(u => u.id === sessionId && u.ativo) || null : null; }
+        function money(v) { return 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+        function round2(v) { return Math.round(v * 100) / 100; }
+        function val(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+        function parseValor(id) { return round2(parseFloat(val(id).replace(',', '.')) || 0); }
+        function userName(id) { const u = DB.users.find(x => x.id === id); return u ? u.nome : '—'; }
+        function showToast(msg, type) {
+            const old = document.getElementById('toast-box'); if (old) old.remove();
+            const color = type === 'err' ? 'bg-red-600' : type === 'warn' ? 'bg-yellow-500 text-gray-900' : 'bg-emerald-600';
+            const el = document.createElement('div'); el.id = 'toast-box';
+            el.className = `fixed top-3 left-1/2 -translate-x-1/2 z-[200] max-w-[92%] px-4 py-2.5 rounded shadow-xl text-xs font-bold text-white ${color}`;
+            el.textContent = msg; document.body.appendChild(el); setTimeout(() => el.remove(), 3500);
+        }
+        function loginMsg(text) { const el = document.getElementById('login-error'); el.textContent = text; el.classList.remove('hidden'); }
+        function showLogin() { betslip = []; document.getElementById('login-pass').value = ''; document.getElementById('login-screen').classList.remove('hidden'); }
+        async function doLogin(e) {
+            e.preventDefault(); document.getElementById('login-error').classList.add('hidden');
+            const r = await api('/login', { login: val('login-user'), senha: document.getElementById('login-pass').value });
+            if (!r.ok) { loginMsg(r.msg); return; }
+            sessionId = String(r.id); document.getElementById('login-pass').value = '';
+            await enterApp(); if (r.senhaPadrao) showToast('Troque a senha padrão em "Mudar Senha".', 'warn');
+        }
+        async function logout() { await api('/logout', {}); sessionId = null; DB = { users: [], transactions: [], tickets: [] }; document.getElementById('login-user').value = ''; document.getElementById('login-error').classList.add('hidden'); showLogin(); }
+        function applyRoleUI() {
+            const u = me(); if (!u) return;
+            document.querySelectorAll('[data-roles]').forEach(el => el.classList.toggle('hidden', !el.dataset.roles.split(',').includes(u.role)));
+        }
+        async function enterApp() {
+            if (!(await loadState())) { showLogin(); return; }
+            document.getElementById('login-screen').classList.add('hidden');
+            applyRoleUI(); updateBetslipUI();
+            navigateTo(me().role !== 'usuario' ? 'painel' : 'home');
+        }
+        async function boot() {
+            const r = await api('/state');
+            if (r.ok) { DB = r; const s = await api('/whoami'); if (s.ok) { sessionId = String(s.id); enterApp(); } }
+        }
+        async function changePassword() {
+            const nova = val('pw-nova'), conf = val('pw-conf');
+            if (nova !== conf) { showToast('A confirmação não confere.', 'err'); return; }
+            const r = await api('/change-password', { atual: val('pw-atual'), nova });
+            if (!r.ok) { showToast(r.msg, 'err'); return; }
+            closeModal(); showToast('Senha alterada com sucesso!');
+        }
+
+        // ---------- Home e Caixa ----------
+        function refreshHome() {
+            const u = me(); if (!u) return;
+            const set = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
+            set('home-nome', u.nome.toUpperCase());
+            set('home-role', ROLE_LABEL[u.role]);
+            set('sidebar-user', u.nome.toUpperCase());
+            set('sidebar-role', ROLE_LABEL[u.role]);
+            set('caixa-title', 'Caixa - ' + u.nome.toUpperCase());
+            set('painel-btn-label', u.role === 'admin' ? 'Painel do ADM' : 'Painel do Cambista');
+            if (u.role === 'usuario') {
+                set('lbl-saldo-1', 'Saldo Geral'); set('home-saldo-geral', money(u.saldo));
+                set('lbl-saldo-2', 'Saldo Simples'); set('home-saldo-simples', money(u.saldo));
+            } else if (u.role === 'cambista') {
+                set('lbl-saldo-1', 'Meu Saldo'); set('home-saldo-geral', money(u.saldo));
+                set('lbl-saldo-2', 'Meus Usuários'); set('home-saldo-simples', String(DB.users.filter(x => x.criadoPor === u.id).length));
+            } else {
+                set('lbl-saldo-1', 'Saldo'); set('home-saldo-geral', 'Ilimitado');
+                set('lbl-saldo-2', 'Cambistas'); set('home-saldo-simples', String(DB.users.filter(x => x.role === 'cambista').length));
+            }
+        }
+
+        function txRows(list) {
+            return list.map(t => {
+                const d = new Date(t.data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                return `<div class="flex items-center py-2 px-2 border-t border-gray-100 first:border-t-0 text-center text-xs">
+                    <div class="w-1/4 font-semibold text-gray-600">${d}</div>
+                    <div class="w-1/4 font-black ${t._sinal < 0 ? 'text-red-600' : 'text-emerald-600'}">${t._sinal < 0 ? '-' : '+'}${money(t.valor).replace('R$ ', '')}</div>
+                    <div class="w-2/4 text-left text-[11px] text-gray-700">${esc(t.desc)}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderCaixa() {
+            const u = me(); if (!u) return;
+            const mine = DB.transactions.filter(t => t.para === u.id || t.de === u.id)
+                .map(t => Object.assign({}, t, { _sinal: t.para === u.id ? 1 : -1 }))
+                .sort((a, b) => b.data.localeCompare(a.data));
+            const entradas = mine.filter(t => t._sinal > 0).reduce((s, t) => s + t.valor, 0);
+            const saidas = mine.filter(t => t._sinal < 0).reduce((s, t) => s + t.valor, 0);
+            const aberto = DB.tickets.filter(t => t.userId === u.id && t.status === 'aberto').reduce((s, t) => s + t.valor, 0);
+            const cards = document.querySelectorAll('#view-caixa .bg-brand-cardBg span.text-xl');
+            if (cards.length >= 6) {
+                cards[0].textContent = money(entradas);
+                cards[1].textContent = money(aberto);
+                cards[2].textContent = money(saidas);
+                cards[3].textContent = money(entradas - saidas);
+                cards[4].textContent = money(DB.comissao || 0);
+                cards[5].textContent = u.role === 'admin' ? 'Ilimitado' : money(u.saldo);
+            }
+            const box = document.getElementById('tabela-lancamentos');
+            if (mine.length) { box.className = 'bg-white rounded-sm border border-gray-200'; box.innerHTML = txRows(mine.slice(0, 50)); }
+            else { box.className = 'bg-white rounded-sm border border-gray-200 text-center py-6 text-xs text-gray-500 font-medium'; box.textContent = 'Nenhum lançamento encontrado para o período.'; }
+        }
+
+        // ---------- Ações (API) ----------
+        async function act(path, body, okMsg) {
+            const r = await api(path, body); if (!r.ok) { showToast(r.msg, 'err'); return false; }
+            if (okMsg) showToast(okMsg); await loadState(); renderPainel(); refreshHome(); return true;
+        }
+        const adminCreateCambista = () => act('/cambistas', { nome: val('nc-nome'), login: val('nc-login'), senha: document.getElementById('nc-senha').value }, 'Cambista criado com sucesso!');
+        const camCreateUser = () => act('/usuarios', { nome: val('nu-nome'), login: val('nu-login'), senha: document.getElementById('nu-senha').value }, 'Usuário cadastrado com sucesso!');
+        const adminAddBalance = () => act('/saldo', { alvo: val('ab-cambista'), valor: parseValor('ab-valor') }, 'Saldo adicionado!');
+        const camAddBalance = () => act('/saldo', { alvo: val('cb-usuario'), valor: parseValor('cb-valor') }, 'Saldo adicionado!');
+        const resetPw = () => act('/reset-senha', { alvo: val('rp-conta'), nova: document.getElementById('rp-nova').value }, 'Senha redefinida!');
+        function quickPick(selId, id, focusId) {
+            const s = document.getElementById(selId); if (s) s.value = id;
+            const f = document.getElementById(focusId); if (f) { f.scrollIntoView({ behavior: 'smooth', block: 'center' }); f.focus(); }
+        }
+
+        async function seedDemo() { const r = await api('/admin/seed', {}); if (!r.ok) return showToast(r.msg, 'err'); showToast(r.criados ? r.criados + ' contas de teste criadas.' : 'Os dados de teste já estão carregados.', r.criados ? 'ok' : 'warn'); await loadState(); renderPainel(); }
+        async function resetDB() {
+            if (!confirm('Apagar TODOS os usuários, cambistas, saldos e bilhetes? O admin volta para admin / admin123.')) return;
+            const r = await api('/admin/reset', {}); if (!r.ok) return showToast(r.msg, 'err');
+            sessionId = null; showLogin(); showToast('Banco resetado. Entre com admin / admin123.', 'warn');
+        }
+        function toggleAtivo(id) { act('/toggle/' + id, {}); }
+
+        // ---------- Painel ----------
+        function renderPainel() {
+            try { renderPainelInner(); }
+            catch (e) {
+                document.getElementById('view-painel').innerHTML = '<div class="bg-red-50 border border-red-200 text-red-700 text-xs font-semibold p-3 rounded">Erro ao montar o painel: ' + esc(e.message) + '</div>';
+            }
+        }
+        function renderPainelInner() {
+            const u = me(); const v = document.getElementById('view-painel');
+            if (!u || u.role === 'usuario') { navigateTo('home'); return; }
+            const I = 'w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-brand-red bg-white';
+            const B = 'w-full bg-brand-red hover:bg-brand-redDark text-white py-2.5 rounded font-extrabold text-xs uppercase shadow';
+            const card = (title, inner) => `<div class="bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden">
+                <div class="bg-brand-red text-white px-3 py-2 text-xs font-extrabold uppercase">${title}</div>
+                <div class="p-3 space-y-2">${inner}</div></div>`;
+            const empty = t => `<p class="text-center text-xs text-gray-400 font-semibold py-3">${t}</p>`;
+            const accRow = c => `<div class="flex justify-between items-center py-2 border-t border-gray-100 first:border-t-0 text-xs">
+                <div><p class="font-bold text-gray-800">${esc(c.nome)} <span class="text-gray-400 font-semibold">@${esc(c.login)}</span>${c.ativo ? '' : ' <span class="text-red-600">(bloqueado)</span>'}</p>
+                <p class="text-[10px] text-gray-500">Saldo: <b>${money(c.saldo)}</b>${c.role === 'cambista' ? ' • ' + DB.users.filter(x => x.criadoPor === c.id).length + ' usuários' : ''}</p></div>
+                <div class="flex gap-1">${(c.role === 'cambista' && c.ativo) ? `<button onclick="quickPick('ab-cambista','${c.id}','ab-valor')" class="text-[10px] font-black uppercase px-2 py-1 rounded bg-emerald-600 text-white">+ Saldo</button>` : ''}<button onclick="toggleAtivo('${c.id}')" class="text-[10px] font-black uppercase px-2 py-1 rounded ${c.ativo ? 'bg-red-100 text-brand-red' : 'bg-emerald-100 text-emerald-700'}">${c.ativo ? 'Bloquear' : 'Ativar'}</button></div></div>`;
+
+            let html = `<div class="flex items-center justify-between mb-1">
+                <button onclick="navigateTo('home')" class="text-xs font-bold text-brand-red flex items-center gap-1"><i class="fa-solid fa-arrow-left"></i> Voltar ao Menu</button>
+                <span class="text-xs font-extrabold text-gray-600 uppercase">${ROLE_LABEL[u.role]}</span></div>`;
+            let movs;
+
+            if (u.role === 'admin') {
+                const cams = DB.users.filter(x => x.role === 'cambista');
+                const opts = cams.filter(c => c.ativo).map(c => `<option value="${c.id}">${esc(c.nome)} (@${esc(c.login)}) - ${money(c.saldo)}</option>`).join('');
+                html += card('Novo Cambista', `
+                    <input id="nc-nome" class="${I}" placeholder="Nome do cambista">
+                    <input id="nc-login" class="${I}" placeholder="Login" autocapitalize="none" autocomplete="off">
+                    <input id="nc-senha" type="password" class="${I}" placeholder="Senha (mín. 4 caracteres)" autocomplete="new-password">
+                    <button onclick="adminCreateCambista()" class="${B}"><i class="fa-solid fa-user-plus mr-1"></i> Criar Cambista</button>`);
+                html += card('Adicionar Saldo ao Cambista', cams.some(c => c.ativo) ? `
+                    <select id="ab-cambista" class="${I}">${opts}</select>
+                    <input id="ab-valor" type="number" inputmode="decimal" min="0" step="0.01" class="${I}" placeholder="Valor (R$)">
+                    <button onclick="adminAddBalance()" class="${B}"><i class="fa-solid fa-circle-plus mr-1"></i> Adicionar Saldo</button>` : empty('Crie um cambista para adicionar saldo.'));
+                html += card('Cambistas (' + cams.length + ')', cams.length ? cams.map(accRow).join('') : empty('Nenhum cambista cadastrado.'));
+                const todos = DB.users.filter(x => x.role === 'usuario');
+                html += card('Banco de Usuários (' + todos.length + ')', todos.length ? todos.map(x => `<div class="flex justify-between items-center py-2 border-t border-gray-100 first:border-t-0 text-xs">
+                    <div><p class="font-bold text-gray-800">${esc(x.nome)} <span class="text-gray-400 font-semibold">@${esc(x.login)}</span>${x.ativo ? '' : ' <span class="text-red-600">(bloqueado)</span>'}</p>
+                    <p class="text-[10px] text-gray-500">Cambista: ${esc(userName(x.criadoPor))}</p></div>
+                    <span class="font-black text-gray-800">${money(x.saldo)}</span></div>`).join('') : empty('Nenhum usuário cadastrado.'));
+                html += card('Dados de Teste', `
+                    <p class="text-[11px] text-gray-600 font-medium">Contas de teste (senha <b>1234</b>): cambistas <b>cambista1</b> e <b>cambista2</b>; usuários <b>teste1</b>, <b>teste2</b> e <b>teste3</b>.</p>
+                    <button onclick="seedDemo(true)" class="${B}"><i class="fa-solid fa-database mr-1"></i> Carregar Dados de Teste</button>
+                    <button onclick="resetDB()" class="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-2.5 rounded font-extrabold text-xs uppercase"><i class="fa-solid fa-trash mr-1"></i> Apagar Tudo e Resetar</button>`);
+                movs = DB.transactions.filter(t => t.tipo === 'credito' && t.de === u.id).map(t => Object.assign({}, t, { _sinal: -1 }));
+            } else {
+                const users = DB.users.filter(x => x.role === 'usuario' && x.criadoPor === u.id);
+                const opts = users.filter(x => x.ativo).map(x => `<option value="${x.id}">${esc(x.nome)} (@${esc(x.login)}) - ${money(x.saldo)}</option>`).join('');
+                html += `<div class="bg-gray-900 text-white rounded-sm p-3 text-center shadow-md">
+                    <span class="text-[11px] font-semibold text-gray-400 block">Seu saldo para recargas</span>
+                    <span class="text-2xl font-black text-yellow-400">${money(u.saldo)}</span></div>`;
+                html += card('Adicionar Saldo ao Usuário', users.some(x => x.ativo) ? `
+                    <select id="cb-usuario" class="${I}">${opts}</select>
+                    <input id="cb-valor" type="number" inputmode="decimal" min="0" step="0.01" class="${I}" placeholder="Valor (R$)">
+                    <button onclick="camAddBalance()" class="${B}"><i class="fa-solid fa-circle-plus mr-1"></i> Adicionar Saldo</button>` : empty('Cadastre um usuário para adicionar saldo.'));
+                html += card('Novo Usuário', `
+                    <input id="nu-nome" class="${I}" placeholder="Nome do usuário">
+                    <input id="nu-login" class="${I}" placeholder="Login" autocapitalize="none" autocomplete="off">
+                    <input id="nu-senha" type="password" class="${I}" placeholder="Senha (mín. 4 caracteres)" autocomplete="new-password">
+                    <button onclick="camCreateUser()" class="${B}"><i class="fa-solid fa-user-plus mr-1"></i> Cadastrar Usuário</button>`);
+                html += card('Meus Usuários (' + users.length + ')', users.length ? users.map(accRow).join('') : empty('Nenhum usuário cadastrado.'));
+                movs = DB.transactions.filter(t => t.de === u.id).map(t => Object.assign({}, t, { _sinal: -1 }));
+            }
+            const mgd = DB.users.filter(x => x.role === (u.role === 'admin' ? 'cambista' : 'usuario') && x.ativo);
+            if (mgd.length) html += card('Redefinir Senha', `<select id="rp-conta" class="${I}">${mgd.map(x => `<option value="${x.id}">${esc(x.nome)} (@${esc(x.login)})</option>`).join('')}</select>
+                <input id="rp-nova" type="password" class="${I}" placeholder="Nova senha (mín. 4)" autocomplete="new-password">
+                <button onclick="resetPw()" class="${B}"><i class="fa-solid fa-key mr-1"></i> Redefinir</button>`);
+            movs.sort((a, b) => b.data.localeCompare(a.data));
+            html += card('Últimas Movimentações', movs.length ? txRows(movs.slice(0, 10)) : empty('Nenhuma movimentação ainda.'));
+            v.innerHTML = html;
+        }
+
+        // Inicialização
+        boot();
+    </script>
+</body>
+</html>
