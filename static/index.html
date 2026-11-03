@@ -3,7 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FORT.BET - Sistema de Apostas</title>
+    <title>Bola Esportiva</title>
+    <meta name="description" content="Bola Esportiva: odds de futebol, basquete, tênis e MMA.">
+    <meta name="theme-color" content="#1445C7">
+    <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+    <link rel="apple-touch-icon" href="/static/icon.svg">
+    <link rel="preconnect" href="https://cdn.tailwindcss.com">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome Icons -->
@@ -16,10 +24,11 @@
                 extend: {
                     colors: {
                         brand: {
-                            red: '#E51C24',
-                            redDark: '#C81018',
-                            bg: '#ECECEC',
-                            cardBg: '#EEEEEE',
+                            blue: '#1F5EFF',
+                            navy: '#0A1F4F',
+                            blueDark: '#1445C7',
+                            bg: '#EEF3FB',
+                            cardBg: '#E6EDF9',
                             textDark: '#111111',
                             textMuted: '#666666'
                         }
@@ -32,45 +41,40 @@
         }
     </script>
     <style>
-        body {
-            background-color: #EFEFEF;
-            font-family: 'Inter', sans-serif;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-        .odd-btn.selected {
-            background-color: #E51C24 !important;
-            color: #ffffff !important;
-            border-color: #C81018 !important;
-        }
+        body { background-color: #EEF3FB; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .login-bg { background: radial-gradient(120% 80% at 50% 0%, #2F6BFF 0%, #1445C7 45%, #0A1F4F 100%); }
+        .hero { background: linear-gradient(135deg, #1F5EFF 0%, #0A1F4F 100%); }
+        .chip { display: inline-flex; align-items: center; gap: .35rem; padding: .4rem .75rem; border-radius: 9999px; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.28); font-size: 11px; font-weight: 700; white-space: nowrap; color: #fff; }
+        .chip:active { background: rgba(255,255,255,.3); }
+        .match-card { content-visibility: auto; contain-intrinsic-size: auto 132px; }
+        .sk { background: linear-gradient(90deg, #E3EAF6 25%, #F3F6FC 37%, #E3EAF6 63%); background-size: 400% 100%; animation: sk 1.4s ease infinite; }
+        @keyframes sk { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+        button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #FACC15; outline-offset: 2px; }
+        @media (prefers-reduced-motion: reduce) { .sk { animation: none; } * { transition: none !important; } }
     </style>
 </head>
-<body class="bg-[#EFEFEF] text-brand-textDark min-h-screen flex flex-col items-center">
+<body class="bg-[#EEF3FB] text-brand-textDark min-h-screen flex flex-col items-center">
 
     <!-- ================= TELA DE LOGIN ================= -->
-    <div id="login-screen" class="fixed inset-0 z-[100] bg-brand-red flex items-center justify-center p-4">
-        <div class="w-full max-w-sm bg-white rounded-md shadow-2xl overflow-hidden">
-            <div class="bg-gray-900 text-white text-center py-5">
-                <h1 class="text-2xl font-black tracking-wider">FORT.BET</h1>
-                <p class="text-[11px] text-gray-400 font-semibold mt-0.5">Acesse sua conta</p>
+    <div id="login-screen" class="fixed inset-0 z-[100] login-bg flex items-center justify-center p-4">
+        <div class="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <div class="text-center pt-7 pb-1 px-5">
+                <img src="/static/logo.svg" alt="Bola Esportiva" class="h-14 mx-auto">
+                <p class="text-xs text-gray-500 font-semibold mt-3">Acesse sua conta</p>
             </div>
             <form class="p-5 space-y-3" onsubmit="doLogin(event)" autocomplete="off">
                 <div>
                     <label class="text-[11px] font-bold text-gray-600 uppercase">Login</label>
-                    <input type="text" id="login-user" autocapitalize="none" autocomplete="username" class="w-full mt-1 p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-brand-red" placeholder="Seu login">
+                    <input type="text" id="login-user" autocapitalize="none" autocomplete="username" class="w-full mt-1 p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-brand-blue" placeholder="Seu login">
                 </div>
                 <div>
                     <label class="text-[11px] font-bold text-gray-600 uppercase">Senha</label>
-                    <input type="password" id="login-pass" autocomplete="current-password" class="w-full mt-1 p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-brand-red" placeholder="Sua senha">
+                    <input type="password" id="login-pass" autocomplete="current-password" class="w-full mt-1 p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-brand-blue" placeholder="Sua senha">
                 </div>
                 <p id="login-error" class="hidden text-xs font-bold text-red-600"></p>
-                <button type="submit" class="w-full bg-brand-red hover:bg-brand-redDark text-white py-3 rounded font-extrabold text-sm uppercase shadow">
+                <button type="submit" id="login-btn" class="w-full bg-brand-blue hover:bg-brand-blueDark text-white py-3 rounded font-extrabold text-sm uppercase shadow">
                     <i class="fa-solid fa-right-to-bracket mr-1"></i> Entrar
                 </button>
             </form>
@@ -82,14 +86,15 @@
     <div class="w-full max-w-md bg-white min-h-screen flex flex-col shadow-2xl relative border-x border-gray-200">
         
         <!-- Header -->
-        <header class="bg-brand-red text-white px-4 py-3 flex justify-between items-center sticky top-0 z-40 shadow-md">
-            <h1 class="text-xl font-extrabold tracking-wider font-sans cursor-pointer flex items-center gap-2" onclick="navigateTo('home')">
-                <span>FORT.BET</span>
+        <header class="bg-gradient-to-r from-brand-blueDark to-brand-blue text-white px-4 py-3 flex justify-between items-center sticky top-0 z-40 shadow-md">
+            <h1 class="cursor-pointer flex items-center gap-2.5" onclick="navigateTo('home')">
+                <img src="/static/icon.svg" alt="" class="w-9 h-9 rounded-xl shadow">
+                <span class="flex flex-col leading-none"><span class="text-[17px] font-black tracking-wide">BOLA</span><span class="text-[10px] font-bold tracking-[0.28em] text-blue-100 mt-0.5">ESPORTIVA</span></span>
             </h1>
             <div class="flex items-center gap-3">
                 <button data-roles="usuario" onclick="toggleBetslipModal()" class="relative text-white p-1 focus:outline-none">
                     <i class="fa-solid fa-receipt text-xl"></i>
-                    <span id="betslip-badge" class="hidden absolute -top-2 -right-2 bg-yellow-400 text-gray-900 font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-brand-red">0</span>
+                    <span id="betslip-badge" class="hidden absolute -top-2 -right-2 bg-yellow-400 text-gray-900 font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-brand-blue">0</span>
                 </button>
                 <button onclick="toggleSideMenu()" class="text-white p-1 focus:outline-none hover:opacity-80 transition">
                     <i class="fa-solid fa-bars text-xl"></i>
@@ -102,10 +107,27 @@
 
             <!-- ================= HOME VIEW ================= -->
             <div id="view-home" class="space-y-2">
+                <div class="hero rounded-xl p-4 text-white shadow-md">
+                    <div class="flex items-center gap-3">
+                        <img src="/static/icon.svg" alt="" class="w-14 h-14 rounded-2xl shadow-lg shrink-0">
+                        <div class="min-w-0">
+                            <h2 class="text-lg font-black leading-tight">Bola Esportiva</h2>
+                            <p class="text-xs text-blue-100 font-medium leading-snug mt-0.5">Odds de futebol, basquete, tênis e MMA. Seu bilhete vai direto para o WhatsApp do cambista.</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-1.5 mt-3 overflow-x-auto no-scrollbar">
+                        <button onclick="navigateTo('futebol')" class="chip"><i class="fa-solid fa-futbol"></i> Futebol</button>
+                        <button onclick="navigateTo('aovivo')" class="chip"><i class="fa-solid fa-circle text-[7px] text-red-400 animate-pulse"></i> Ao Vivo</button>
+                        <button onclick="navigateTo('basquete')" class="chip"><i class="fa-solid fa-basketball"></i> Basquete</button>
+                        <button onclick="navigateTo('tenis')" class="chip"><i class="fa-solid fa-baseball-bat-ball"></i> Tênis</button>
+                        <button onclick="navigateTo('mma')" class="chip"><i class="fa-solid fa-hand-fist"></i> MMA</button>
+                    </div>
+                </div>
+
                 <!-- User Balance Card -->
-                <div class="bg-[#E9E9E9] rounded-sm p-3 shadow-sm border border-gray-300">
+                <div class="bg-[#E3EBF8] rounded-sm p-3 shadow-sm border border-gray-300">
                     <h2 class="text-center font-extrabold text-base tracking-wide text-brand-textDark uppercase mb-0" id="home-nome"></h2>
-                    <p id="home-role" class="text-center text-[11px] font-bold text-brand-red uppercase mb-2"></p>
+                    <p id="home-role" class="text-center text-[11px] font-bold text-brand-blue uppercase mb-2"></p>
                     <div class="grid grid-cols-2 gap-2">
                         <div class="bg-white rounded-md p-2.5 shadow-sm border border-gray-200">
                             <span class="text-[11px] font-semibold text-brand-textMuted block leading-tight" id="lbl-saldo-1">Saldo Geral</span>
@@ -120,37 +142,37 @@
 
                 <!-- Navigation List -->
                 <nav class="space-y-2 pt-1">
-                    <button data-roles="admin,cambista" onclick="navigateTo('painel')" class="w-full bg-gray-900 text-white transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-md active:scale-[0.99]">
+                    <button data-roles="admin,cambista" onclick="navigateTo('painel')" class="w-full bg-brand-navy text-white transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-md active:scale-[0.99]">
                         <i class="fa-solid fa-user-shield text-lg w-6 text-yellow-400 text-center"></i>
                         <span class="font-bold text-base" id="painel-btn-label">Painel</span>
                     </button>
 
-                    <button onclick="openModal('recuperar-pin')" class="w-full bg-brand-cardBg hover:bg-gray-300 transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
+                    <button onclick="openModal('recuperar-pin')" class="w-full bg-brand-cardBg hover:bg-blue-100 transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
                         <i class="fa-solid fa-keyboard text-lg w-6 text-brand-textDark text-center"></i>
                         <span class="font-bold text-base text-brand-textDark">Recuperar PIN</span>
                     </button>
 
-                    <button onclick="navigateTo('acumuladao')" class="w-full bg-brand-cardBg hover:bg-gray-300 transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
+                    <button onclick="navigateTo('acumuladao')" class="w-full bg-brand-cardBg hover:bg-blue-100 transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
                         <i class="fa-solid fa-star text-lg w-6 text-brand-textDark text-center"></i>
                         <span class="font-bold text-base text-brand-textDark">Acumuladão</span>
                     </button>
 
                     <!-- Futebol Shortcut (Highlights Active Sports Area) -->
-                    <button onclick="navigateTo('futebol')" class="w-full bg-brand-red text-white transition-colors rounded-sm px-4 py-3.5 flex items-center justify-between shadow-md active:scale-[0.99]">
+                    <button onclick="navigateTo('futebol')" class="w-full bg-brand-blue text-white transition-colors rounded-sm px-4 py-3.5 flex items-center justify-between shadow-md active:scale-[0.99]">
                         <div class="flex items-center gap-3">
                             <i class="fa-solid fa-futbol text-lg w-6 text-center"></i>
                             <span class="font-bold text-base">Futebol (Jogos por Dia)</span>
                         </div>
-                        <span class="bg-white text-brand-red text-[10px] font-black px-2 py-0.5 rounded uppercase">Ao Vivo / Odds</span>
+                        <span class="bg-white text-brand-blue text-[10px] font-black px-2 py-0.5 rounded uppercase">Ao Vivo / Odds</span>
                     </button>
 
-                    <button onclick="navigateTo('aovivo')" class="w-full bg-brand-cardBg hover:bg-gray-300 transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
+                    <button onclick="navigateTo('aovivo')" class="w-full bg-brand-cardBg hover:bg-blue-100 transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
                         <i class="fa-solid fa-video text-lg w-6 text-brand-textDark text-center"></i>
                         <span class="font-bold text-base text-brand-textDark">Ao Vivo</span>
                     </button>
 
                     <div>
-                        <button onclick="toggleMaisEsportes()" class="w-full bg-brand-cardBg hover:bg-gray-300 transition-colors rounded-sm px-4 py-3.5 flex items-center justify-between shadow-sm border border-gray-200">
+                        <button onclick="toggleMaisEsportes()" class="w-full bg-brand-cardBg hover:bg-blue-100 transition-colors rounded-sm px-4 py-3.5 flex items-center justify-between shadow-sm border border-gray-200">
                             <div class="flex items-center gap-3">
                                 <i class="fa-solid fa-circle-plus text-lg w-6 text-brand-textDark text-center"></i>
                                 <span class="font-bold text-base text-brand-textDark">Mais Esportes</span>
@@ -170,17 +192,17 @@
                         </div>
                     </div>
 
-                    <button onclick="navigateTo('caixa')" class="w-full bg-brand-cardBg hover:bg-gray-300 transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
+                    <button onclick="navigateTo('caixa')" class="w-full bg-brand-cardBg hover:bg-blue-100 transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
                         <i class="fa-solid fa-wallet text-lg w-6 text-brand-textDark text-center"></i>
                         <span class="font-bold text-base text-brand-textDark">Caixa</span>
                     </button>
-                    <button onclick="navigateTo('bilhetes')" data-roles="usuario" class="w-full bg-brand-cardBg hover:bg-gray-300 rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
+                    <button onclick="navigateTo('bilhetes')" data-roles="usuario" class="w-full bg-brand-cardBg hover:bg-blue-100 rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
                         <i class="fa-solid fa-receipt text-lg w-6 text-center"></i><span class="font-bold text-base">Meus Bilhetes</span>
                     </button>
-                    <button onclick="navigateTo('relatorios')" data-roles="admin,cambista" class="w-full bg-brand-cardBg hover:bg-gray-300 rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
+                    <button onclick="navigateTo('relatorios')" data-roles="admin,cambista" class="w-full bg-brand-cardBg hover:bg-blue-100 rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
                         <i class="fa-solid fa-chart-line text-lg w-6 text-center"></i><span class="font-bold text-base">Relatórios / Bilhetes</span>
                     </button>
-                    <button onclick="logout()" class="w-full bg-red-100 text-brand-red rounded-sm px-4 py-3.5 flex items-center gap-3 text-left font-bold text-base">
+                    <button onclick="logout()" class="w-full bg-red-100 text-red-600 rounded-sm px-4 py-3.5 flex items-center gap-3 text-left font-bold text-base">
                         <i class="fa-solid fa-right-from-bracket text-lg w-6 text-center"></i> Sair
                     </button>
                 </nav>
@@ -190,14 +212,14 @@
             <div id="view-futebol" class="hidden space-y-3">
                 <!-- Top Nav / Search -->
                 <div class="flex items-center justify-between mb-1">
-                    <button onclick="navigateTo('home')" class="text-xs font-bold text-brand-red flex items-center gap-1">
+                    <button onclick="navigateTo('home')" class="text-xs font-bold text-brand-blue flex items-center gap-1">
                         <i class="fa-solid fa-arrow-left"></i> Voltar ao Menu
                     </button>
                     <span id="sport-title" class="text-xs font-extrabold text-gray-600 uppercase">Futebol</span>
                 </div>
 
                 <!-- Feed de Odds (API embutida no código) -->
-                <div class="bg-gray-900 text-white p-3 rounded-sm shadow-md space-y-2">
+                <div class="bg-brand-navy text-white p-3 rounded-sm shadow-md space-y-2">
                     <div class="flex items-center justify-between">
                         <span class="text-xs font-bold text-yellow-400 flex items-center gap-1.5">
                             <i class="fa-solid fa-satellite-dish animate-pulse"></i> Feed de Odds em Tempo Real
@@ -206,7 +228,7 @@
                     </div>
                     <div class="flex items-center justify-between gap-2">
                         <span id="api-info" class="text-[10px] text-gray-400 font-semibold">Buscando jogos...</span>
-                        <button onclick="loadMatches(true)" class="bg-brand-red hover:bg-brand-redDark text-white py-1.5 px-3 rounded font-black text-[11px] uppercase flex items-center gap-2 transition whitespace-nowrap">
+                        <button onclick="loadMatches(true)" class="bg-brand-blue hover:bg-brand-blueDark text-white py-1.5 px-3 rounded font-black text-[11px] uppercase flex items-center gap-2 transition whitespace-nowrap">
                             <i class="fa-solid fa-arrows-rotate" id="refresh-icon"></i> Atualizar
                         </button>
                     </div>
@@ -214,13 +236,13 @@
 
                 <!-- Search Input -->
                 <div class="relative">
-                    <input type="text" id="search-teams" onkeyup="filterGames()" placeholder="Buscar time ou campeonato..." class="w-full pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-sm text-xs font-medium focus:outline-none focus:border-brand-red shadow-sm">
+                    <input type="text" id="search-teams" oninput="filterGames()" placeholder="Buscar time ou campeonato..." class="w-full pl-9 pr-3 py-2 bg-white border border-gray-300 rounded-sm text-xs font-medium focus:outline-none focus:border-brand-blue shadow-sm">
                     <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-gray-400 text-xs"></i>
                 </div>
 
                 <!-- Day Filter Tabs (Horizontal Scroll) -->
                 <div class="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-bold" id="day-tabs">
-                    <button onclick="filterByDay('all')" class="day-tab px-3 py-1.5 rounded-sm bg-brand-red text-white shadow-sm whitespace-nowrap active-tab" data-day="all">Todos os Dias</button>
+                    <button onclick="filterByDay('all')" class="day-tab px-3 py-1.5 rounded-sm bg-brand-blue text-white shadow-sm whitespace-nowrap active-tab" data-day="all">Todos os Dias</button>
                     <button onclick="filterByDay('hoje')" class="day-tab px-3 py-1.5 rounded-sm bg-gray-200 text-gray-700 hover:bg-gray-300 whitespace-nowrap" data-day="hoje">Hoje</button>
                     <button onclick="filterByDay('amanha')" class="day-tab px-3 py-1.5 rounded-sm bg-gray-200 text-gray-700 hover:bg-gray-300 whitespace-nowrap" data-day="amanha">Amanhã</button>
                     <button onclick="filterByDay('quinta')" class="day-tab px-3 py-1.5 rounded-sm bg-gray-200 text-gray-700 hover:bg-gray-300 whitespace-nowrap" data-day="quinta">Quinta-feira</button>
@@ -237,13 +259,13 @@
             <!-- ================= CAIXA VIEW ================= -->
             <div id="view-caixa" class="hidden space-y-3">
                 <div class="flex items-center justify-between mb-2">
-                    <button onclick="navigateTo('home')" class="text-sm font-bold text-brand-red flex items-center gap-1">
+                    <button onclick="navigateTo('home')" class="text-sm font-bold text-brand-blue flex items-center gap-1">
                         <i class="fa-solid fa-arrow-left"></i> Voltar ao Menu
                     </button>
                     <span class="text-xs font-semibold text-gray-500">Financeiro</span>
                 </div>
 
-                <div class="bg-brand-red text-white p-2.5 rounded-sm text-center shadow-sm">
+                <div class="bg-brand-blue text-white p-2.5 rounded-sm text-center shadow-sm">
                     <h2 class="font-extrabold text-base tracking-wide" id="caixa-title">Caixa</h2>
                 </div>
 
@@ -275,15 +297,15 @@
                 </div>
 
                 <div class="flex items-center justify-center gap-2 py-2">
-                    <input type="checkbox" id="mostrarApostas" class="w-4 h-4 text-brand-red rounded border-gray-400 focus:ring-brand-red" checked>
+                    <input type="checkbox" id="mostrarApostas" class="w-4 h-4 text-brand-blue rounded border-gray-400 focus:ring-brand-blue" checked>
                     <label for="mostrarApostas" class="text-sm font-semibold text-brand-textDark">Mostrar apostas em aberto</label>
                 </div>
 
-                <div class="bg-brand-red text-white p-2.5 rounded-sm text-center shadow-sm mt-3">
+                <div class="bg-brand-blue text-white p-2.5 rounded-sm text-center shadow-sm mt-3">
                     <h3 class="font-extrabold text-base tracking-wide">Lançamentos de Caixa</h3>
                 </div>
 
-                <div class="bg-brand-red text-white py-2 px-3 rounded-sm flex text-xs font-bold uppercase tracking-wider text-center">
+                <div class="bg-brand-blue text-white py-2 px-3 rounded-sm flex text-xs font-bold uppercase tracking-wider text-center">
                     <div class="w-1/4">DATA</div>
                     <div class="w-1/4">VALOR</div>
                     <div class="w-2/4">DESCRIÇÃO</div>
@@ -300,13 +322,13 @@
             <!-- ================= GENERIC MODULE VIEW ================= -->
             <div id="view-generic" class="hidden space-y-3">
                 <div class="flex items-center justify-between mb-2">
-                    <button onclick="navigateTo('home')" class="text-sm font-bold text-brand-red flex items-center gap-1">
+                    <button onclick="navigateTo('home')" class="text-sm font-bold text-brand-blue flex items-center gap-1">
                         <i class="fa-solid fa-arrow-left"></i> Voltar
                     </button>
                     <span id="generic-category" class="text-xs font-semibold text-gray-500">Módulo</span>
                 </div>
 
-                <div class="bg-brand-red text-white p-3 rounded-sm text-center shadow-sm">
+                <div class="bg-brand-blue text-white p-3 rounded-sm text-center shadow-sm">
                     <h2 id="generic-title" class="font-extrabold text-lg tracking-wide uppercase">TÍTULO</h2>
                 </div>
 
@@ -315,18 +337,19 @@
                 </div>
             </div>
 
+        <p class="text-center text-[10px] text-gray-400 font-semibold pt-6 pb-1">Bola Esportiva • Proibido para menores de 18 anos • Jogue com responsabilidade</p>
         </main>
 
         <!-- Dynamic Floating Betslip Footer Bar -->
-        <div id="betslip-bar" data-roles="usuario" onclick="toggleBetslipModal()" class="fixed bottom-0 max-w-md w-full bg-gray-900 text-white p-3 border-t-2 border-brand-red cursor-pointer flex justify-between items-center shadow-2xl z-40">
+        <div id="betslip-bar" data-roles="usuario" onclick="toggleBetslipModal()" class="fixed bottom-0 max-w-md w-full bg-brand-navy text-white p-3 border-t-2 border-brand-blue cursor-pointer flex justify-between items-center shadow-2xl z-40">
             <div class="flex items-center gap-3">
-                <div class="bg-brand-red font-black text-xs px-2.5 py-1 rounded" id="bar-count">0</div>
+                <div class="bg-brand-blue font-black text-xs px-2.5 py-1 rounded" id="bar-count">0</div>
                 <div>
                     <span class="text-xs font-bold text-gray-300 block">Bilhete de Aposta</span>
                     <span class="text-xs font-black text-yellow-400" id="bar-possible-win">Retorno: R$ 0,00</span>
                 </div>
             </div>
-            <button class="bg-brand-red text-white px-4 py-1.5 rounded font-extrabold text-xs uppercase hover:bg-brand-redDark transition">
+            <button class="bg-brand-blue text-white px-4 py-1.5 rounded font-extrabold text-xs uppercase hover:bg-brand-blueDark transition">
                 Ver Bilhete <i class="fa-solid fa-chevron-up ml-1"></i>
             </button>
         </div>
@@ -334,8 +357,8 @@
         <!-- Sidebar / Drawer Menu -->
         <div id="sidebar-overlay" onclick="toggleSideMenu()" class="fixed inset-0 bg-black/60 z-50 hidden transition-opacity"></div>
         <aside id="sidebar-drawer" class="fixed top-0 right-0 h-full w-64 bg-white z-50 transform translate-x-full transition-transform duration-300 shadow-2xl flex flex-col">
-            <div class="bg-brand-red p-4 text-white flex justify-between items-center">
-                <span class="font-black text-lg tracking-wider">FORT.BET</span>
+            <div class="bg-brand-blue p-4 text-white flex justify-between items-center">
+                <span class="flex items-center gap-2 font-black text-lg"><img src="/static/icon.svg" alt="" class="w-8 h-8 rounded-lg">Bola Esportiva</span>
                 <button onclick="toggleSideMenu()" class="text-white hover:opacity-80">
                     <i class="fa-solid fa-xmark text-xl"></i>
                 </button>
@@ -343,36 +366,36 @@
             <div class="p-4 border-b border-gray-100 bg-gray-50">
                 <p class="text-xs text-gray-500 font-medium">Usuário Logado</p>
                 <p class="font-extrabold text-brand-textDark text-base" id="sidebar-user"></p>
-                <p class="text-[10px] font-bold text-brand-red uppercase" id="sidebar-role"></p>
+                <p class="text-[10px] font-bold text-brand-blue uppercase" id="sidebar-role"></p>
             </div>
             <div class="flex-1 p-2 space-y-1 overflow-y-auto">
                 <button onclick="navigateTo('home'); toggleSideMenu();" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
-                    <i class="fa-solid fa-house text-brand-red w-5"></i> Início
+                    <i class="fa-solid fa-house text-brand-blue w-5"></i> Início
                 </button>
                 <button onclick="navigateTo('futebol'); toggleSideMenu();" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
-                    <i class="fa-solid fa-futbol text-brand-red w-5"></i> Futebol por Dia
+                    <i class="fa-solid fa-futbol text-brand-blue w-5"></i> Futebol por Dia
                 </button>
                 <button onclick="navigateTo('caixa'); toggleSideMenu();" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
-                    <i class="fa-solid fa-wallet text-brand-red w-5"></i> Caixa
+                    <i class="fa-solid fa-wallet text-brand-blue w-5"></i> Caixa
                 </button>
                 <button onclick="navigateTo('bilhetes'); toggleSideMenu();" data-roles="usuario" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
-                    <i class="fa-solid fa-receipt text-brand-red w-5"></i> Meus Bilhetes
+                    <i class="fa-solid fa-receipt text-brand-blue w-5"></i> Meus Bilhetes
                 </button>
                 <button onclick="navigateTo('relatorios'); toggleSideMenu();" data-roles="admin,cambista" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
-                    <i class="fa-solid fa-chart-line text-brand-red w-5"></i> Relatórios
+                    <i class="fa-solid fa-chart-line text-brand-blue w-5"></i> Relatórios
                 </button>
                 <button onclick="openModal('regulamento'); toggleSideMenu();" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
-                    <i class="fa-solid fa-file-contract text-brand-red w-5"></i> Regulamento
+                    <i class="fa-solid fa-file-contract text-brand-blue w-5"></i> Regulamento
                 </button>
                 <button onclick="openModal('mudar-senha'); toggleSideMenu();" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
-                    <i class="fa-solid fa-key text-brand-red w-5"></i> Mudar Senha
+                    <i class="fa-solid fa-key text-brand-blue w-5"></i> Mudar Senha
                 </button>
                 <button onclick="navigateTo('painel'); toggleSideMenu();" data-roles="admin,cambista" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
-                    <i class="fa-solid fa-user-gear text-brand-red w-5"></i> Painel de Gestão
+                    <i class="fa-solid fa-user-gear text-brand-blue w-5"></i> Painel de Gestão
                 </button>
             </div>
             <div class="p-4 border-t border-gray-200">
-                <button onclick="toggleSideMenu(); logout();" class="w-full bg-red-100 text-brand-red hover:bg-red-200 py-2.5 rounded font-bold text-sm flex items-center justify-center gap-2">
+                <button onclick="toggleSideMenu(); logout();" class="w-full bg-red-100 text-red-600 hover:bg-red-200 py-2.5 rounded font-bold text-sm flex items-center justify-center gap-2">
                     <i class="fa-solid fa-right-from-bracket"></i> Sair do Sistema
                 </button>
             </div>
@@ -381,7 +404,7 @@
         <!-- BETSLIP MODAL -->
         <div id="betslip-modal" class="fixed inset-0 bg-black/70 z-50 hidden flex flex-col justify-end items-center">
             <div class="bg-white w-full max-w-md rounded-t-xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
-                <div class="bg-brand-red text-white p-3.5 flex justify-between items-center">
+                <div class="bg-brand-blue text-white p-3.5 flex justify-between items-center">
                     <div class="flex items-center gap-2">
                         <i class="fa-solid fa-receipt text-lg"></i>
                         <h3 class="font-extrabold text-base uppercase">Bilhete de Aposta</h3>
@@ -400,12 +423,12 @@
                 <div class="p-3 bg-white border-t border-gray-200 space-y-2.5">
                     <div class="flex justify-between items-center text-xs font-bold text-gray-700">
                         <span>Cotação Total (Odd):</span>
-                        <span id="betslip-total-odd" class="text-sm font-black text-brand-red">1.00</span>
+                        <span id="betslip-total-odd" class="text-sm font-black text-brand-blue">1.00</span>
                     </div>
 
                     <div>
                         <label class="text-[11px] font-bold text-gray-600 block mb-1">Valor da Aposta (R$):</label>
-                        <input type="number" id="betslip-stake" value="10" min="1" oninput="updateBetslipCalculations()" class="w-full p-2 border border-gray-300 rounded font-bold text-sm text-gray-800 focus:outline-none focus:border-brand-red">
+                        <input type="number" id="betslip-stake" value="10" min="1" oninput="updateBetslipCalculations()" class="w-full p-2 border border-gray-300 rounded font-bold text-sm text-gray-800 focus:outline-none focus:border-brand-blue">
                     </div>
 
                     <div class="bg-gray-100 p-2.5 rounded-sm flex justify-between items-center text-xs font-extrabold">
@@ -417,7 +440,7 @@
                         <button onclick="clearBetslip()" class="w-full bg-gray-200 text-gray-700 py-2.5 rounded font-bold text-xs uppercase hover:bg-gray-300">
                             Limpar
                         </button>
-                        <button onclick="confirmBet()" class="w-full bg-brand-red text-white py-2.5 rounded font-extrabold text-xs uppercase hover:bg-brand-redDark shadow">
+                        <button onclick="confirmBet()" class="w-full bg-brand-blue text-white py-2.5 rounded font-extrabold text-xs uppercase hover:bg-brand-blueDark shadow">
                             Confirmar Aposta
                         </button>
                     </div>
@@ -428,7 +451,7 @@
         <!-- GENERIC MODAL -->
         <div id="modal-container" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
             <div class="bg-white w-full max-w-sm rounded-md shadow-2xl overflow-hidden border border-gray-300">
-                <div class="bg-brand-red text-white px-4 py-3 flex justify-between items-center">
+                <div class="bg-brand-blue text-white px-4 py-3 flex justify-between items-center">
                     <h3 id="modal-title" class="font-extrabold text-base uppercase">TÍTULO MODAL</h3>
                     <button onclick="closeModal()" class="text-white hover:opacity-80">
                         <i class="fa-solid fa-xmark text-lg"></i>
@@ -487,6 +510,10 @@
         }
 
         let currentSport = 'futebol', LOGOS = {};
+        try { LOGOS = JSON.parse(localStorage.getItem('bola_logos') || '{}') || {}; } catch (e) { LOGOS = {}; }   // logos ja conhecidas: aparecem na hora
+        const SPORT_CACHE = {}, INFLIGHT = {};
+        let logoRun = 0, saveLogosTimer = null, STATE_AT = 0, filterTimer = null;
+        function saveLogos() { clearTimeout(saveLogosTimer); saveLogosTimer = setTimeout(() => { try { localStorage.setItem('bola_logos', JSON.stringify(LOGOS)); } catch (e) {} }, 800); }
         function buildMatchesData(events) {
             const days = {};
             events.forEach(ev => {
@@ -499,58 +526,108 @@
             return DAY_ORDER.filter(d => days[d]).map(d => ({ dayId: d, dayTitle: DAY_TITLES[d],
                 leagues: Object.values(days[d]).map(l => { l.matches.sort((x, y) => x.ts - y.ts); return l; }) }));
         }
-        async function loadMatches(force) {
-            const icon = document.getElementById('refresh-icon'); icon.classList.add('fa-spin');
-            setStatus("Carregando...", "bg-gray-600", "Buscando jogos...");
-            try {
-                const r = await api('/odds?grupo=' + currentSport + (force ? '&force=1' : ''));
-                if (!r.ok) throw new Error(r.msg || 'Falha na API de odds.');
-                LOGOS = Object.assign(LOGOS, r.logos || {});
-                matchesData = buildMatchesData(r.events);
-                const total = r.events.length, hora = new Date(r.updated * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                setStatus("Ao Vivo", "bg-emerald-600", `${total} jogos • atualizado às ${hora}`);
-                refreshLogos(r.events, 0);
-            } catch (err) { matchesData = []; setStatus("Erro na API", "bg-red-600", err.message); }
-            finally { icon.classList.remove('fa-spin'); renderMatches(document.getElementById('search-teams').value); }
+        function skeleton() {
+            const row = `<div class="bg-white rounded-xl border border-gray-200 p-3 space-y-2"><div class="sk h-3 w-20 rounded"></div><div class="flex items-center gap-2.5"><div class="sk w-8 h-8 rounded-full"></div><div class="sk h-3.5 w-40 rounded"></div></div><div class="flex items-center gap-2.5"><div class="sk w-8 h-8 rounded-full"></div><div class="sk h-3.5 w-32 rounded"></div></div><div class="grid grid-cols-3 gap-2 pt-1"><div class="sk h-11 rounded-lg"></div><div class="sk h-11 rounded-lg"></div><div class="sk h-11 rounded-lg"></div></div></div>`;
+            return `<div class="space-y-3" aria-busy="true" aria-label="Carregando jogos">${row.repeat(4)}</div>`;
         }
-        // logos sao resolvidas em segundo plano no servidor; busca de novo algumas vezes
-        async function refreshLogos(events, n) {
-            const names = [...new Set(events.flatMap(e => [e.home, e.away]))].filter(x => !(x in LOGOS));
-            if (!names.length || n > 40) return;
+        // uma unica requisicao por esporte por vez (login e tela de futebol nao disputam a mesma chamada)
+        function fetchOdds(sport, force) {
+            const k = sport + (force ? '!' : '');
+            if (INFLIGHT[k]) return INFLIGHT[k];
+            INFLIGHT[k] = api('/odds?grupo=' + sport + (force ? '&force=1' : '')).then(r => {
+                if (r.ok) { Object.assign(LOGOS, r.logos || {}); saveLogos(); SPORT_CACHE[sport] = { r, data: buildMatchesData(r.events), at: Date.now() }; }
+                return r;
+            }).finally(() => { delete INFLIGHT[k]; });
+            return INFLIGHT[k];
+        }
+        function showSport(sport) {
+            const c = SPORT_CACHE[sport]; if (!c) return;
+            matchesData = c.data;
+            const hora = new Date(c.r.updated * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            setStatus("Ao Vivo", "bg-emerald-600", `${c.r.events.length} jogos • atualizado às ${hora}`);
+            renderMatches(document.getElementById('search-teams').value);
+            refreshLogos(c.r.events);
+        }
+        async function loadMatches(force) {
+            const sport = currentSport, icon = document.getElementById('refresh-icon'), c = SPORT_CACHE[sport];
+            icon.classList.add('fa-spin');
+            if (c) {                                   // ja tem dados: mostra na hora e atualiza por tras
+                showSport(sport);
+                if (!force && Date.now() - c.at < 60000) { icon.classList.remove('fa-spin'); return; }
+            } else {
+                matchesData = []; setStatus("Carregando...", "bg-gray-600", "Buscando jogos...");
+                document.getElementById('matches-container').innerHTML = skeleton();
+            }
+            try {
+                const r = await fetchOdds(sport, force);
+                if (sport !== currentSport) return;
+                if (!r.ok) throw new Error(r.msg || 'Falha na API de odds.');
+                showSport(sport);
+            } catch (err) {
+                if (sport !== currentSport) return;
+                if (SPORT_CACHE[sport]) setStatus("Desatualizado", "bg-yellow-600", err.message);
+                else { matchesData = []; setStatus("Erro na API", "bg-red-600", err.message); renderMatches(''); }
+            } finally { icon.classList.remove('fa-spin'); }
+        }
+        // logos sao resolvidas em segundo plano no servidor; o escudo gerado aparece na hora e vira a logo real quando chega
+        function refreshLogos(events, n = 0, run = ++logoRun) {
+            if (currentSport === 'tenis' || currentSport === 'mma') return;
+            const names = [...new Set(events.flatMap(e => [e.home, e.away]))].filter(x => !LOGOS[x]);
+            if (!names.length || n > 40 || run !== logoRun) return;
             setTimeout(async () => {
-                const r = await api('/logos', { names, grupo: currentSport === 'aovivo' ? 'futebol' : currentSport }); if (!r.ok) return;
-                const before = Object.keys(LOGOS).length; Object.assign(LOGOS, r.logos);
-                if (Object.keys(LOGOS).length > before && !document.getElementById('view-futebol').classList.contains('hidden')) renderMatches(document.getElementById('search-teams').value);
-                if (r.pendentes > 0) refreshLogos(events, n + 1);
-            }, n < 3 ? 4000 : 9000);
+                if (run !== logoRun) return;
+                const r = await api('/logos', { names: names.slice(0, 300), grupo: currentSport === 'aovivo' ? 'futebol' : currentSport });
+                if (!r.ok || run !== logoRun) return;
+                const got = Object.keys(r.logos || {}).filter(k => !LOGOS[k]);
+                Object.assign(LOGOS, r.logos); if (got.length) { saveLogos(); applyLogos(got); }
+                if (r.pendentes > 0) refreshLogos(events, n + 1, run);
+            }, n === 0 ? 1500 : n < 3 ? 4000 : 9000);
+        }
+        function applyLogos(names) {                   // troca so os escudos que mudaram (sem redesenhar a lista inteira)
+            const set = new Set(names);
+            document.querySelectorAll('[data-crest]').forEach(el => { if (set.has(el.dataset.crest)) el.outerHTML = crest(el.dataset.crest); });
         }
         function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;'); }
+        function crestInit(name) { return name.split(/\s+/).filter(w => w.length > 1).slice(0, 2).map(w => w[0]).join('').toUpperCase() || name.charAt(0).toUpperCase(); }
+        function crestHue(name) { let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h) % 360; }
+        // escudo gerado: todo time tem logo mesmo quando a base de escudos ainda nao achou a oficial
+        function shield(ini, hue) {
+            return `<svg viewBox="0 0 32 36" class="w-8 h-8 shrink-0" aria-hidden="true"><path d="M16 1.5 29.5 5.5V16.7C29.5 25 23.5 31.1 16 34.5 8.5 31.1 2.5 25 2.5 16.7V5.5Z" fill="hsl(${hue},62%,40%)" stroke="rgba(255,255,255,.9)" stroke-width="1.6"/><path d="M16 1.5 29.5 5.5V11.5H2.5V5.5Z" fill="rgba(255,255,255,.16)"/><text x="16" y="23" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-weight="800" font-size="${ini.length > 1 ? 11 : 13}" fill="#fff">${esc(ini)}</text></svg>`;
+        }
         function logoFail(img) {
             if (!img.dataset.r && img.dataset.o && img.src !== img.dataset.o) { img.dataset.r = 1; img.src = img.dataset.o; return; }
-            const s = document.createElement('span'); s.className = 'w-8 h-8 rounded-full text-white text-[11px] font-black flex items-center justify-center shrink-0';
-            s.style.background = img.dataset.c; s.textContent = img.dataset.i; img.replaceWith(s);
+            const n = img.dataset.n; img.parentElement.innerHTML = shield(crestInit(n), crestHue(n));
         }
         function crest(name) {
-            let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) | 0;
-            const ini = name.split(/\s+/).filter(w => w.length > 1).slice(0, 2).map(w => w[0]).join('').toUpperCase() || name[0], bg = `hsl(${Math.abs(h) % 360},55%,42%)`;
-            const url = LOGOS[name];
-            if (!url) return `<span style="background:${bg}" class="w-8 h-8 rounded-full text-white text-[11px] font-black flex items-center justify-center shrink-0 shadow-inner">${esc(ini)}</span>`;
-            const small = url.includes('thesportsdb.com') ? url + '/tiny' : url;
-            return `<span class="w-8 h-8 shrink-0 flex items-center justify-center"><img src="${esc(small)}" data-o="${esc(url)}" data-i="${esc(ini)}" data-c="${bg}" referrerpolicy="no-referrer" loading="lazy" alt="" onerror="logoFail(this)" class="w-8 h-8 object-contain"></span>`;
+            const url = LOGOS[name], a = `data-crest="${esc(name)}"`;
+            if (!url) return `<span ${a} class="w-8 h-8 shrink-0 flex items-center justify-center">${shield(crestInit(name), crestHue(name))}</span>`;
+            const small = url.includes('://www.thesportsdb.com/') ? url + '/tiny' : url;
+            return `<span ${a} class="w-8 h-8 shrink-0 flex items-center justify-center"><img src="${esc(small)}" data-o="${esc(url)}" data-n="${esc(name)}" referrerpolicy="no-referrer" decoding="async" loading="lazy" alt="" onerror="logoFail(this)" class="w-8 h-8 object-contain"></span>`;
         }
+        const OB_ON = 'bg-brand-blue text-white shadow-md', OB_OFF = 'bg-gray-100 text-gray-900 hover:bg-gray-200';
         function oddButton(m, market, label, caption) {
             const odd = m.odds[market];
             if (odd == null) return `<div class="rounded-lg py-2 text-center bg-gray-100 text-gray-300 text-xs font-bold">-</div>`;
             const sel = isSelected(String(m.id), label), name = esc(`${m.home} x ${m.away}`);
             if (m.started) return `<div class="rounded-lg py-2 text-center bg-gray-100 text-gray-400"><span class="block text-[9px] font-bold uppercase">${caption}</span><span class="block text-sm font-black">${Number(odd).toFixed(2)}</span></div>`;
-            return `<button onclick="toggleSelectOdd('${esc(m.id)}', '${name}', '${label}', ${odd})" class="rounded-lg py-2 text-center transition active:scale-95 ${sel ? 'bg-brand-red text-white shadow-md' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'}">
+            return `<button data-mid="${esc(m.id)}" data-mk="${label}" onclick="toggleSelectOdd('${esc(m.id)}', '${name}', '${label}', ${odd})" class="odd-b rounded-lg py-2 text-center transition active:scale-95 ${sel ? OB_ON : OB_OFF}">
                 <span class="block text-[9px] font-bold uppercase ${sel ? 'text-white/80' : 'text-gray-500'}">${caption}</span><span class="block text-sm font-black">${Number(odd).toFixed(2)}</span></button>`;
+        }
+        // marca/desmarca as odds escolhidas sem redesenhar a lista (antes cada clique recriava todos os jogos)
+        function syncSelections() {
+            document.querySelectorAll('button.odd-b').forEach(b => {
+                const on = isSelected(b.dataset.mid, b.dataset.mk);
+                OB_ON.split(' ').forEach(c => b.classList.toggle(c, on));
+                OB_OFF.split(' ').forEach(c => b.classList.toggle(c, !on));
+                const cap = b.firstElementChild;
+                if (cap) { cap.classList.toggle('text-white/80', on); cap.classList.toggle('text-gray-500', !on); }
+            });
         }
         function matchCard(m) {
             const x = m.odds.X != null;
-            return `<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-3">
+            return `<div class="match-card bg-white rounded-xl shadow-sm border border-gray-200 p-3">
                 <div class="flex justify-between items-center mb-2">
-                    <span class="text-[10px] font-bold ${m.started ? 'text-brand-red' : 'text-gray-500'} uppercase flex items-center gap-1">${m.started ? '<i class="fa-solid fa-circle text-[6px] animate-pulse"></i> Em andamento' : '<i class="fa-regular fa-clock"></i> ' + m.time}</span>
+                    <span class="text-[10px] font-bold ${m.started ? 'text-red-600' : 'text-gray-500'} uppercase flex items-center gap-1">${m.started ? '<i class="fa-solid fa-circle text-[6px] animate-pulse"></i> Em andamento' : '<i class="fa-regular fa-clock"></i> ' + m.time}</span>
                     <span class="text-[10px] text-gray-400 font-semibold">${m.started ? 'Apostas encerradas' : ''}</span></div>
                 <div class="space-y-1.5 mb-3">
                     <div class="flex items-center gap-2.5">${crest(m.home)}<span class="text-sm font-bold text-gray-900 truncate">${esc(m.home)}</span></div>
@@ -569,7 +646,7 @@
                     lh += `<div class="space-y-2"><div class="flex items-center gap-2 px-1 pt-1 text-[11px] font-extrabold text-gray-700 uppercase"><span class="text-base">${league.flag}</span><span>${esc(league.name)}</span></div>${list.map(matchCard).join('')}</div>`;
                 });
                 if (!cnt) return;
-                html += `<div class="space-y-2"><button onclick="toggleDaySection('${day.dayId}')" class="w-full bg-brand-red text-white px-3 py-2.5 rounded-lg flex justify-between items-center shadow-sm">
+                html += `<div class="space-y-2"><button onclick="toggleDaySection('${day.dayId}')" class="w-full bg-brand-blue text-white px-3 py-2.5 rounded-lg flex justify-between items-center shadow-sm">
                     <span class="text-xs font-extrabold uppercase">${day.dayTitle} <span class="font-semibold opacity-80">(${cnt})</span></span>
                     <i id="arrow-${day.dayId}" class="fa-solid fa-chevron-down text-xs transition-transform"></i></button>
                     <div id="content-${day.dayId}" class="space-y-4">${lh}</div></div>`;
@@ -577,7 +654,8 @@
             container.innerHTML = html || `<div class="text-center py-10 text-gray-400 text-xs font-semibold"><i class="fa-solid fa-futbol text-3xl mb-2 opacity-40"></i><p>Nenhum jogo encontrado.</p></div>`;
         }
 
-        // Toggle Day Collapsible
+        
+// Toggle Day Collapsible
         function toggleDaySection(dayId) {
             const content = document.getElementById(`content-${dayId}`);
             const arrow = document.getElementById(`arrow-${dayId}`);
@@ -592,7 +670,7 @@
             currentDayFilter = dayKey;
             document.querySelectorAll('.day-tab').forEach(btn => {
                 if (btn.dataset.day === dayKey) {
-                    btn.className = "day-tab px-3 py-1.5 rounded-sm bg-brand-red text-white shadow-sm whitespace-nowrap font-bold";
+                    btn.className = "day-tab px-3 py-1.5 rounded-sm bg-brand-blue text-white shadow-sm whitespace-nowrap font-bold";
                 } else {
                     btn.className = "day-tab px-3 py-1.5 rounded-sm bg-gray-200 text-gray-700 hover:bg-gray-300 whitespace-nowrap font-bold";
                 }
@@ -601,9 +679,9 @@
             renderMatches(searchVal);
         }
 
-        function filterGames() {
-            const searchVal = document.getElementById('search-teams').value;
-            renderMatches(searchVal);
+        function filterGames() {                       // espera o usuario parar de digitar antes de redesenhar
+            clearTimeout(filterTimer);
+            filterTimer = setTimeout(() => renderMatches(document.getElementById('search-teams').value), 150);
         }
 
         // Betslip Add/Remove Logic
@@ -623,19 +701,19 @@
                 betslip.push({ matchId, matchName, market, odd });
             }
             updateBetslipUI();
-            renderMatches(document.getElementById('search-teams').value);
+            syncSelections();
         }
 
         function removeFromBetslip(index) {
             betslip.splice(index, 1);
             updateBetslipUI();
-            renderMatches(document.getElementById('search-teams').value);
+            syncSelections();
         }
 
         function clearBetslip() {
             betslip = [];
             updateBetslipUI();
-            renderMatches(document.getElementById('search-teams').value);
+            syncSelections();
         }
 
         function updateBetslipUI() {
@@ -668,11 +746,11 @@
                         <div class="bg-white p-2.5 rounded border border-gray-200 flex justify-between items-center shadow-sm">
                             <div>
                                 <p class="text-[10px] font-bold text-gray-500">${item.matchName}</p>
-                                <p class="text-xs font-extrabold text-brand-red">${item.market}</p>
+                                <p class="text-xs font-extrabold text-brand-blue">${item.market}</p>
                             </div>
                             <div class="flex items-center gap-2">
                                 <span class="bg-gray-100 text-gray-800 text-xs font-black px-2 py-1 rounded border">${item.odd.toFixed(2)}</span>
-                                <button onclick="removeFromBetslip(${index})" class="text-gray-400 hover:text-brand-red p-1">
+                                <button onclick="removeFromBetslip(${index})" class="text-gray-400 hover:text-brand-blue p-1">
                                     <i class="fa-solid fa-trash-can text-xs"></i>
                                 </button>
                             </div>
@@ -707,7 +785,7 @@
         }
 
         function bilheteWhats(r) {
-            const L = ['*FORT.BET - BILHETE #' + r.id + '*', 'Apostador: ' + r.usuario, 'Cambista: ' + (r.cambista ? r.cambista.nome : '-'), ''];
+            const L = ['*BOLA ESPORTIVA - BILHETE #' + r.id + '*', 'Apostador: ' + r.usuario, 'Cambista: ' + (r.cambista ? r.cambista.nome : '-'), ''];
             r.selecoes.forEach((s, i) => L.push((i + 1) + ') ' + s.jogo, '    Palpite: ' + s.palpite + ' @ ' + Number(s.odd).toFixed(2)));
             L.push('', 'Odd total: ' + Number(r.odd).toFixed(2), 'Valor: ' + money(r.valor), 'Retorno possível: ' + money(r.retorno), '', new Date().toLocaleString('pt-BR'));
             return L.join('\n');
@@ -734,17 +812,22 @@
         async function navigateTo(viewName) {
             currentView = viewName;
             ['home', 'futebol', 'caixa', 'painel', 'generic'].forEach(v => document.getElementById('view-' + v).classList.add('hidden'));
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            if (viewName !== 'home' && viewName !== 'painel') await loadState();
-            if (viewName === 'home') { document.getElementById('view-home').classList.remove('hidden'); await loadState(); refreshHome(); }
-            else if (viewName === 'painel') { document.getElementById('view-painel').classList.remove('hidden'); await loadState(); renderPainel(); }
-            else if (viewName === 'caixa') { document.getElementById('view-caixa').classList.remove('hidden'); renderCaixa(); }
-            else if (SPORTS[viewName]) {
+            window.scrollTo({ top: 0 });
+            // mostra a tela na hora com os dados que ja temos e atualiza por tras (antes cada clique esperava o servidor)
+            if (viewName === 'home') {
+                document.getElementById('view-home').classList.remove('hidden'); refreshHome(); softState('home', refreshHome);
+            } else if (viewName === 'painel') {
+                document.getElementById('view-painel').classList.remove('hidden'); renderPainel();
+                softState('painel', () => { const a = document.activeElement; if (!(a && a.closest && a.closest('#view-painel'))) renderPainel(); });
+            } else if (viewName === 'caixa') {
+                document.getElementById('view-caixa').classList.remove('hidden'); renderCaixa(); softState('caixa', renderCaixa);
+            } else if (SPORTS[viewName]) {
                 currentSport = viewName; document.getElementById('sport-title').textContent = SPORTS[viewName];
                 document.getElementById('view-futebol').classList.remove('hidden'); loadMatches(false);
             } else {
                 document.getElementById('view-generic').classList.remove('hidden');
                 await renderGeneric(viewName);
+                if (viewName === 'bilhetes' || viewName === 'relatorios') softState(viewName, () => renderGeneric(viewName));
             }
         }
         function gcard(rows) { return rows; }
@@ -766,9 +849,9 @@
                 if (!matchesData.length || currentSport !== 'futebol') { currentSport = 'futebol'; await loadMatches(false); }
                 const fav = matchesData.flatMap(d => d.leagues.flatMap(l => l.matches)).filter(m => !m.started).map(m => { const k = m.odds['1'] <= m.odds['2'] ? '1' : '2'; return { m, k, o: m.odds[k] }; }).sort((a, b) => a.o - b.o).slice(0, 4);
                 const odd = fav.reduce((a, f) => a * f.o, 1);
-                B.innerHTML = fav.length ? `<p class="text-xs font-semibold text-gray-700">Combo dos 4 maiores favoritos do momento:</p>${fav.map(f => `<div class="flex justify-between text-xs border rounded p-2 bg-gray-50"><span class="font-bold">${esc(f.m.home)} x ${esc(f.m.away)} <span class="text-brand-red">(${f.k})</span></span><b>${f.o.toFixed(2)}</b></div>`).join('')}
-                    <p class="text-sm font-black text-brand-red text-right">Odd total ${odd.toFixed(2)}</p>
-                    <button onclick='addCombo(${JSON.stringify(fav.map(f => [f.m.id, f.m.home + " x " + f.m.away, f.k, f.o]))})' class="w-full bg-brand-red text-white py-2 rounded font-extrabold text-xs uppercase">Adicionar ao bilhete</button>` : '<p class="text-xs text-gray-400 text-center">Sem jogos disponíveis agora.</p>';
+                B.innerHTML = fav.length ? `<p class="text-xs font-semibold text-gray-700">Combo dos 4 maiores favoritos do momento:</p>${fav.map(f => `<div class="flex justify-between text-xs border rounded p-2 bg-gray-50"><span class="font-bold">${esc(f.m.home)} x ${esc(f.m.away)} <span class="text-brand-blue">(${f.k})</span></span><b>${f.o.toFixed(2)}</b></div>`).join('')}
+                    <p class="text-sm font-black text-brand-blue text-right">Odd total ${odd.toFixed(2)}</p>
+                    <button onclick='addCombo(${JSON.stringify(fav.map(f => [f.m.id, f.m.home + " x " + f.m.away, f.k, f.o]))})' class="w-full bg-brand-blue text-white py-2 rounded font-extrabold text-xs uppercase">Adicionar ao bilhete</button>` : '<p class="text-xs text-gray-400 text-center">Sem jogos disponíveis agora.</p>';
             }
         }
         function addCombo(l) {
@@ -790,7 +873,7 @@
         function ticketHtml(t, manage) {
             const d = new Date(t.data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
             return `<div class="border rounded p-2.5 bg-gray-50 text-xs space-y-1"><div class="flex justify-between"><b>#${t.id} • ${esc(userName(t.userId))}</b><span class="text-[10px] font-black px-1.5 py-0.5 rounded ${ST[t.status][1]}">${ST[t.status][0]}</span></div>
-                ${t.selecoes.map(s => `<div class="text-[11px]"><div class="flex justify-between"><span>${esc(s.jogo)} <b class="text-brand-red">(${esc(s.palpite || s.mercado)})</b></span><span>${Number(s.odd).toFixed(2)}</span></div>${liveLine(s)}</div>`).join('')}
+                ${t.selecoes.map(s => `<div class="text-[11px]"><div class="flex justify-between"><span>${esc(s.jogo)} <b class="text-brand-blue">(${esc(s.palpite || s.mercado)})</b></span><span>${Number(s.odd).toFixed(2)}</span></div>${liveLine(s)}</div>`).join('')}
                 <div class="flex justify-between text-[11px] text-gray-600 pt-1 border-t"><span>${d} • Aposta ${money(t.valor)} • Odd ${t.odd.toFixed(2)}</span><b>Retorno ${money(t.retorno)}</b></div>
                 ${manage ? `<div class="grid grid-cols-3 gap-1 pt-1">${[['ganhou', 'bg-emerald-600', 'Ganhou'], ['perdeu', 'bg-red-600', 'Perdeu'], ['cancelado', 'bg-gray-600', 'Anular']].map(([r, c, n]) => `<button onclick="settleTicket('${t.id}','${r}')" class="${c} text-white rounded py-1 text-[10px] font-black uppercase">${n}</button>`).join('')}</div>` : ''}</div>`;
         }
@@ -863,7 +946,7 @@
                         <input type="password" id="pw-atual" placeholder="Senha Atual" autocomplete="current-password" class="w-full p-2 border border-gray-300 rounded text-xs">
                         <input type="password" id="pw-nova" placeholder="Nova Senha (mín. 4 caracteres)" autocomplete="new-password" class="w-full p-2 border border-gray-300 rounded text-xs">
                         <input type="password" id="pw-conf" placeholder="Confirmar Nova Senha" autocomplete="new-password" class="w-full p-2 border border-gray-300 rounded text-xs">
-                        <button onclick="changePassword()" class="w-full bg-brand-red text-white py-2 font-bold text-xs uppercase mt-1 shadow">
+                        <button onclick="changePassword()" class="w-full bg-brand-blue text-white py-2 font-bold text-xs uppercase mt-1 shadow">
                             Salvar Nova Senha
                         </button>
                     </div>
@@ -888,7 +971,8 @@
                 return j;
             } catch (e) { return { ok: false, msg: 'Sem conexão com o servidor.' }; }
         }
-        async function loadState() { const r = await api('/state'); if (r.ok) { DB = r; } return r.ok; }
+        async function loadState() { const r = await api('/state'); if (r.ok) { DB = r; STATE_AT = Date.now(); } return r.ok; }
+        function softState(view, fn) { if (Date.now() - STATE_AT < 3000) return; loadState().then(ok => { if (ok && currentView === view) fn(); }); }
         function me() { return sessionId ? DB.users.find(u => u.id === sessionId && u.ativo) || null : null; }
         function money(v) { return 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
         function round2(v) { return Math.round(v * 100) / 100; }
@@ -906,25 +990,36 @@
         function showLogin() { betslip = []; document.getElementById('login-pass').value = ''; document.getElementById('login-screen').classList.remove('hidden'); }
         async function doLogin(e) {
             e.preventDefault(); document.getElementById('login-error').classList.add('hidden');
-            const r = await api('/login', { login: val('login-user'), senha: document.getElementById('login-pass').value });
-            if (!r.ok) { loginMsg(r.msg); return; }
-            sessionId = String(r.id); document.getElementById('login-pass').value = '';
-            await enterApp(); if (r.senhaPadrao) showToast('Troque a senha padrão em "Mudar Senha".', 'warn');
+            const btn = document.getElementById('login-btn'), label = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Entrando...';
+            try {
+                const r = await api('/login', { login: val('login-user'), senha: document.getElementById('login-pass').value });
+                if (!r.ok) { loginMsg(r.msg); return; }
+                sessionId = String(r.id); document.getElementById('login-pass').value = '';
+                await enterApp(); if (r.senhaPadrao) showToast('Troque a senha padrão em "Mudar Senha".', 'warn');
+            } finally { btn.disabled = false; btn.innerHTML = label; }
         }
-        async function logout() { await api('/logout', {}); sessionId = null; DB = { users: [], transactions: [], tickets: [] }; document.getElementById('login-user').value = ''; document.getElementById('login-error').classList.add('hidden'); showLogin(); }
+        async function logout() {
+            await api('/logout', {}); sessionId = null; DB = { users: [], transactions: [], tickets: [] };
+            Object.keys(SPORT_CACHE).forEach(k => delete SPORT_CACHE[k]); matchesData = [];
+            document.getElementById('login-user').value = ''; document.getElementById('login-error').classList.add('hidden'); showLogin();
+        }
         function applyRoleUI() {
             const u = me(); if (!u) return;
             document.querySelectorAll('[data-roles]').forEach(el => el.classList.toggle('hidden', !el.dataset.roles.split(',').includes(u.role)));
         }
-        async function enterApp() {
-            if (!(await loadState())) { showLogin(); return; }
+        async function enterApp(haveState) {
+            if (!haveState && !(await loadState())) { showLogin(); return; }
+            const u = me(); if (!u) { showLogin(); return; }
             document.getElementById('login-screen').classList.add('hidden');
-            applyRoleUI(); updateBetslipUI(); clearInterval(liveTimer); liveTimer = setInterval(pollLive, 30000); pollLive();
-            navigateTo(me().role !== 'usuario' ? 'painel' : 'home');
+            applyRoleUI(); updateBetslipUI();
+            if (u.role === 'usuario') fetchOdds('futebol', false);     // busca as odds enquanto o usuario ainda esta no inicio
+            clearInterval(liveTimer); liveTimer = setInterval(pollLive, 30000); setTimeout(pollLive, 4000);
+            navigateTo(u.role !== 'usuario' ? 'painel' : 'home');
         }
         async function boot() {
             const r = await api('/state');
-            if (r.ok) { DB = r; const s = await api('/whoami'); if (s.ok) { sessionId = String(s.id); enterApp(); } }
+            if (r.ok && r.me) { DB = r; STATE_AT = Date.now(); sessionId = String(r.me); enterApp(true); }
         }
         async function changePassword() {
             const nova = val('pw-nova'), conf = val('pw-conf');
@@ -1023,19 +1118,19 @@
         function renderPainelInner() {
             const u = me(); const v = document.getElementById('view-painel');
             if (!u || u.role === 'usuario') { navigateTo('home'); return; }
-            const I = 'w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-brand-red bg-white';
-            const B = 'w-full bg-brand-red hover:bg-brand-redDark text-white py-2.5 rounded font-extrabold text-xs uppercase shadow';
+            const I = 'w-full p-2.5 border border-gray-300 rounded text-sm focus:outline-none focus:border-brand-blue bg-white';
+            const B = 'w-full bg-brand-blue hover:bg-brand-blueDark text-white py-2.5 rounded font-extrabold text-xs uppercase shadow';
             const card = (title, inner) => `<div class="bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden">
-                <div class="bg-brand-red text-white px-3 py-2 text-xs font-extrabold uppercase">${title}</div>
+                <div class="bg-brand-blue text-white px-3 py-2 text-xs font-extrabold uppercase">${title}</div>
                 <div class="p-3 space-y-2">${inner}</div></div>`;
             const empty = t => `<p class="text-center text-xs text-gray-400 font-semibold py-3">${t}</p>`;
             const accRow = c => `<div class="flex justify-between items-center py-2 border-t border-gray-100 first:border-t-0 text-xs">
                 <div><p class="font-bold text-gray-800">${esc(c.nome)} <span class="text-gray-400 font-semibold">@${esc(c.login)}</span>${c.ativo ? '' : ' <span class="text-red-600">(bloqueado)</span>'}</p>
                 <p class="text-[10px] text-gray-500">Saldo: <b>${money(c.saldo)}</b>${c.role === 'cambista' ? ' • ' + DB.users.filter(x => x.criadoPor === c.id).length + ' usuários' : ''}</p></div>
-                <div class="flex gap-1">${(c.role === 'cambista' && c.ativo) ? `<button onclick="quickPick('ab-cambista','${c.id}','ab-valor')" class="text-[10px] font-black uppercase px-2 py-1 rounded bg-emerald-600 text-white">+ Saldo</button>` : ''}<button onclick="toggleAtivo('${c.id}')" class="text-[10px] font-black uppercase px-2 py-1 rounded ${c.ativo ? 'bg-red-100 text-brand-red' : 'bg-emerald-100 text-emerald-700'}">${c.ativo ? 'Bloquear' : 'Ativar'}</button></div></div>`;
+                <div class="flex gap-1">${(c.role === 'cambista' && c.ativo) ? `<button onclick="quickPick('ab-cambista','${c.id}','ab-valor')" class="text-[10px] font-black uppercase px-2 py-1 rounded bg-emerald-600 text-white">+ Saldo</button>` : ''}<button onclick="toggleAtivo('${c.id}')" class="text-[10px] font-black uppercase px-2 py-1 rounded ${c.ativo ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}">${c.ativo ? 'Bloquear' : 'Ativar'}</button></div></div>`;
 
             let html = `<div class="flex items-center justify-between mb-1">
-                <button onclick="navigateTo('home')" class="text-xs font-bold text-brand-red flex items-center gap-1"><i class="fa-solid fa-arrow-left"></i> Voltar ao Menu</button>
+                <button onclick="navigateTo('home')" class="text-xs font-bold text-brand-blue flex items-center gap-1"><i class="fa-solid fa-arrow-left"></i> Voltar ao Menu</button>
                 <span class="text-xs font-extrabold text-gray-600 uppercase">${ROLE_LABEL[u.role]}</span></div>`;
             let movs;
 
@@ -1065,7 +1160,7 @@
             } else {
                 const users = DB.users.filter(x => x.role === 'usuario' && x.criadoPor === u.id);
                 const opts = users.filter(x => x.ativo).map(x => `<option value="${x.id}">${esc(x.nome)} (@${esc(x.login)}) - ${money(x.saldo)}</option>`).join('');
-                html += `<div class="bg-gray-900 text-white rounded-sm p-3 text-center shadow-md">
+                html += `<div class="bg-brand-navy text-white rounded-sm p-3 text-center shadow-md">
                     <span class="text-[11px] font-semibold text-gray-400 block">Seu saldo para recargas</span>
                     <span class="text-2xl font-black text-yellow-400">${money(u.saldo)}</span></div>`;
                 html += card('Adicionar Saldo ao Usuário', users.some(x => x.ativo) ? `
