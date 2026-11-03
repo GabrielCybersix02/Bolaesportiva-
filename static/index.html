@@ -516,21 +516,27 @@
         // logos sao resolvidas em segundo plano no servidor; busca de novo algumas vezes
         async function refreshLogos(events, n) {
             const names = [...new Set(events.flatMap(e => [e.home, e.away]))].filter(x => !(x in LOGOS));
-            if (!names.length || n > 5) return;
+            if (!names.length || n > 40) return;
             setTimeout(async () => {
-                const r = await api('/logos', { names }); if (!r.ok) return;
+                const r = await api('/logos', { names, grupo: currentSport === 'aovivo' ? 'futebol' : currentSport }); if (!r.ok) return;
                 const before = Object.keys(LOGOS).length; Object.assign(LOGOS, r.logos);
-                if (Object.keys(LOGOS).length > before) renderMatches(document.getElementById('search-teams').value);
-                refreshLogos(events, n + 1);
-            }, 6000);
+                if (Object.keys(LOGOS).length > before && !document.getElementById('view-futebol').classList.contains('hidden')) renderMatches(document.getElementById('search-teams').value);
+                if (r.pendentes > 0) refreshLogos(events, n + 1);
+            }, n < 3 ? 4000 : 9000);
         }
         function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;'); }
+        function logoFail(img) {
+            if (!img.dataset.r && img.dataset.o && img.src !== img.dataset.o) { img.dataset.r = 1; img.src = img.dataset.o; return; }
+            const s = document.createElement('span'); s.className = 'w-8 h-8 rounded-full text-white text-[11px] font-black flex items-center justify-center shrink-0';
+            s.style.background = img.dataset.c; s.textContent = img.dataset.i; img.replaceWith(s);
+        }
         function crest(name) {
             let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) | 0;
-            const ini = name.split(/\s+/).filter(w => w.length > 1).slice(0, 2).map(w => w[0]).join('').toUpperCase() || name[0];
-            const fb = `<span style="background:hsl(${Math.abs(h) % 360},55%,42%)" class="w-8 h-8 rounded-full text-white text-[11px] font-black flex items-center justify-center shrink-0 shadow-inner">${esc(ini)}</span>`;
-            if (!LOGOS[name]) return fb;
-            return `<span class="relative w-8 h-8 shrink-0"><img src="${esc(LOGOS[name])}/tiny" onerror="this.onerror=null;this.src='${esc(LOGOS[name])}'" alt="" loading="lazy" class="w-8 h-8 object-contain"></span>`;
+            const ini = name.split(/\s+/).filter(w => w.length > 1).slice(0, 2).map(w => w[0]).join('').toUpperCase() || name[0], bg = `hsl(${Math.abs(h) % 360},55%,42%)`;
+            const url = LOGOS[name];
+            if (!url) return `<span style="background:${bg}" class="w-8 h-8 rounded-full text-white text-[11px] font-black flex items-center justify-center shrink-0 shadow-inner">${esc(ini)}</span>`;
+            const small = url.includes('thesportsdb.com') ? url + '/tiny' : url;
+            return `<span class="w-8 h-8 shrink-0 flex items-center justify-center"><img src="${esc(small)}" data-o="${esc(url)}" data-i="${esc(ini)}" data-c="${bg}" referrerpolicy="no-referrer" loading="lazy" alt="" onerror="logoFail(this)" class="w-8 h-8 object-contain"></span>`;
         }
         function oddButton(m, market, label, caption) {
             const odd = m.odds[market];
@@ -700,14 +706,23 @@
             barWinEl.innerText = `Retorno: R$ ${possibleWin.toFixed(2)}`;
         }
 
+        function bilheteWhats(r) {
+            const L = ['*FORT.BET - BILHETE #' + r.id + '*', 'Apostador: ' + r.usuario, 'Cambista: ' + (r.cambista ? r.cambista.nome : '-'), ''];
+            r.selecoes.forEach((s, i) => L.push((i + 1) + ') ' + s.jogo, '    Palpite: ' + s.palpite + ' @ ' + Number(s.odd).toFixed(2)));
+            L.push('', 'Odd total: ' + Number(r.odd).toFixed(2), 'Valor: ' + money(r.valor), 'Retorno possível: ' + money(r.retorno), '', new Date().toLocaleString('pt-BR'));
+            return L.join('\n');
+        }
         async function confirmBet() {
             const u = me();
             if (!u || u.role !== 'usuario') { showToast('Somente usuários podem apostar.', 'err'); return; }
             if (!betslip.length) { showToast('Adicione pelo menos uma seleção ao bilhete.', 'err'); return; }
             const r = await api('/bets', { valor: parseFloat(document.getElementById('betslip-stake').value) || 0, selecoes: betslip.map(s => ({ matchId: s.matchId, market: s.market })) });
             if (!r.ok) { showToast(r.msg, 'err'); return; }
-            showToast(`Bilhete confirmado! Retorno possível: ${money(r.retorno)}`);
             clearBetslip(); toggleBetslipModal(); await loadState(); refreshHome();
+            if (r.cambista && r.cambista.telefone) {
+                showToast(`Bilhete #${r.id} confirmado! Abrindo o WhatsApp do seu cambista...`);
+                setTimeout(() => { window.location.href = 'https://wa.me/' + r.cambista.telefone + '?text=' + encodeURIComponent(bilheteWhats(r)); }, 1500);
+            } else showToast(`Bilhete #${r.id} confirmado! Seu cambista ainda não cadastrou o WhatsApp.`, 'warn');
         }
 
         function toggleBetslipModal() {
@@ -717,6 +732,7 @@
 
         const SPORTS = { futebol: 'Futebol', aovivo: 'Ao Vivo / Começando', basquete: 'Basquete', tenis: 'Tênis', mma: 'MMA / Lutas' };
         async function navigateTo(viewName) {
+            currentView = viewName;
             ['home', 'futebol', 'caixa', 'painel', 'generic'].forEach(v => document.getElementById('view-' + v).classList.add('hidden'));
             window.scrollTo({ top: 0, behavior: 'smooth' });
             if (viewName !== 'home' && viewName !== 'painel') await loadState();
@@ -760,12 +776,34 @@
             betslip = l.map(([matchId, matchName, market, odd]) => ({ matchId, matchName, market, odd })); updateBetslipUI(); toggleBetslipModal();
         }
         const ST = { aberto: ['Em aberto', 'bg-yellow-100 text-yellow-800'], ganhou: ['Ganhou', 'bg-emerald-100 text-emerald-700'], perdeu: ['Perdeu', 'bg-red-100 text-red-700'], cancelado: ['Cancelado', 'bg-gray-200 text-gray-600'] };
+        let LIVE = {}, currentView = 'home', liveTimer = null;
+        function liveLine(s) {
+            if (!s.id) return '';
+            const lv = LIVE[s.id], st = s.commence ? new Date(s.commence) : null, nm = x => esc(x || '');
+            if (lv && lv.started) {
+                const sc = `${nm(s.home)} <b>${lv.home ?? 0} x ${lv.away ?? 0}</b> ${nm(s.away)}`;
+                return lv.completed ? `<div class="text-[10px] text-gray-600 font-semibold">ENCERRADO • ${sc}</div>` : `<div class="text-[10px] text-red-600 font-bold"><i class="fa-solid fa-circle text-[6px] animate-pulse"></i> AO VIVO • ${sc}</div>`;
+            }
+            if (st && st.getTime() <= Date.now()) return '<div class="text-[10px] text-gray-500">Jogo iniciado • aguardando placar...</div>';
+            return st ? `<div class="text-[10px] text-gray-500"><i class="fa-regular fa-clock"></i> ${st.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>` : '';
+        }
         function ticketHtml(t, manage) {
             const d = new Date(t.data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-            return `<div class="border rounded p-2.5 bg-gray-50 text-xs space-y-1"><div class="flex justify-between"><b>#${t.id}${manage ? ' • ' + esc(userName(t.userId)) : ''}</b><span class="text-[10px] font-black px-1.5 py-0.5 rounded ${ST[t.status][1]}">${ST[t.status][0]}</span></div>
-                ${t.selecoes.map(s => `<div class="flex justify-between text-[11px]"><span>${esc(s.jogo)} <b class="text-brand-red">(${esc(s.mercado)})</b></span><span>${Number(s.odd).toFixed(2)}</span></div>`).join('')}
+            return `<div class="border rounded p-2.5 bg-gray-50 text-xs space-y-1"><div class="flex justify-between"><b>#${t.id} • ${esc(userName(t.userId))}</b><span class="text-[10px] font-black px-1.5 py-0.5 rounded ${ST[t.status][1]}">${ST[t.status][0]}</span></div>
+                ${t.selecoes.map(s => `<div class="text-[11px]"><div class="flex justify-between"><span>${esc(s.jogo)} <b class="text-brand-red">(${esc(s.palpite || s.mercado)})</b></span><span>${Number(s.odd).toFixed(2)}</span></div>${liveLine(s)}</div>`).join('')}
                 <div class="flex justify-between text-[11px] text-gray-600 pt-1 border-t"><span>${d} • Aposta ${money(t.valor)} • Odd ${t.odd.toFixed(2)}</span><b>Retorno ${money(t.retorno)}</b></div>
                 ${manage ? `<div class="grid grid-cols-3 gap-1 pt-1">${[['ganhou', 'bg-emerald-600', 'Ganhou'], ['perdeu', 'bg-red-600', 'Perdeu'], ['cancelado', 'bg-gray-600', 'Anular']].map(([r, c, n]) => `<button onclick="settleTicket('${t.id}','${r}')" class="${c} text-white rounded py-1 text-[10px] font-black uppercase">${n}</button>`).join('')}</div>` : ''}</div>`;
+        }
+        async function pollLive() {
+            if (!sessionId || document.hidden) return;
+            const r = await api('/live'); if (!r.ok) return;
+            const find = id => { for (const t of DB.tickets) { const s = t.selecoes.find(x => x.id === id); if (s) return s; } };
+            Object.entries(r.live).forEach(([id, v]) => {
+                const p = LIVE[id], s = find(id);
+                if (p && s && v.started && !v.completed && (p.home !== v.home || p.away !== v.away)) showToast(`⚽ GOL! ${s.home} ${v.home ?? 0} x ${v.away ?? 0} ${s.away}`, 'warn');
+            });
+            LIVE = r.live;
+            if (currentView === 'bilhetes' || currentView === 'relatorios') renderGeneric(currentView);
         }
         async function settleTicket(id, resultado) {
             if (!confirm('Confirmar resultado do bilhete #' + id + '?')) return;
@@ -881,7 +919,7 @@
         async function enterApp() {
             if (!(await loadState())) { showLogin(); return; }
             document.getElementById('login-screen').classList.add('hidden');
-            applyRoleUI(); updateBetslipUI();
+            applyRoleUI(); updateBetslipUI(); clearInterval(liveTimer); liveTimer = setInterval(pollLive, 30000); pollLive();
             navigateTo(me().role !== 'usuario' ? 'painel' : 'home');
         }
         async function boot() {
@@ -901,7 +939,7 @@
             const u = me(); if (!u) return;
             const set = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
             set('home-nome', u.nome.toUpperCase());
-            set('home-role', ROLE_LABEL[u.role]);
+            set('home-role', ROLE_LABEL[u.role] + (u.role === 'usuario' && DB.cambista ? ' • Cambista: ' + DB.cambista.nome : ''));
             set('sidebar-user', u.nome.toUpperCase());
             set('sidebar-role', ROLE_LABEL[u.role]);
             set('caixa-title', 'Caixa - ' + u.nome.toUpperCase());
@@ -960,6 +998,7 @@
         const camCreateUser = () => act('/usuarios', { nome: val('nu-nome'), login: val('nu-login'), senha: document.getElementById('nu-senha').value }, 'Usuário cadastrado com sucesso!');
         const adminAddBalance = () => act('/saldo', { alvo: val('ab-cambista'), valor: parseValor('ab-valor') }, 'Saldo adicionado!');
         const camAddBalance = () => act('/saldo', { alvo: val('cb-usuario'), valor: parseValor('cb-valor') }, 'Saldo adicionado!');
+        const saveTel = () => act('/telefone', { telefone: val('tel-num') }, 'Número salvo!');
         const resetPw = () => act('/reset-senha', { alvo: val('rp-conta'), nova: document.getElementById('rp-nova').value }, 'Senha redefinida!');
         function quickPick(selId, id, focusId) {
             const s = document.getElementById(selId); if (s) s.value = id;
@@ -1033,6 +1072,9 @@
                     <select id="cb-usuario" class="${I}">${opts}</select>
                     <input id="cb-valor" type="number" inputmode="decimal" min="0" step="0.01" class="${I}" placeholder="Valor (R$)">
                     <button onclick="camAddBalance()" class="${B}"><i class="fa-solid fa-circle-plus mr-1"></i> Adicionar Saldo</button>` : empty('Cadastre um usuário para adicionar saldo.'));
+                html += card('Meu WhatsApp', `<p class="text-[11px] text-gray-500">Quando seus usuários confirmarem um bilhete, o WhatsApp abre neste número com o bilhete pronto.</p>
+                    <input id="tel-num" type="tel" inputmode="tel" class="${I}" placeholder="DDD + número (ex: 11 91234-5678)" value="${esc(u.telefone || '')}">
+                    <button onclick="saveTel()" class="${B}"><i class="fa-brands fa-whatsapp mr-1"></i> Salvar número</button>`);
                 html += card('Novo Usuário', `
                     <input id="nu-nome" class="${I}" placeholder="Nome do usuário">
                     <input id="nu-login" class="${I}" placeholder="Login" autocapitalize="none" autocomplete="off">
