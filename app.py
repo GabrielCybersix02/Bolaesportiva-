@@ -1,12 +1,13 @@
 """FORT.BET - backend Flask + SQLite.  Rodar: python app.py   (producao: gunicorn app:app)"""
-import os, json, time, sqlite3, threading, secrets
+import os, json, time, threading, secrets
+import psycopg2, psycopg2.extras
 from datetime import datetime, timezone
 import requests
-from flask import Flask, g, jsonify, request, session, send_from_directory
+from flask import Flask, g, jsonify, has_request_context, request, session, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.environ.get("FORTBET_DB", os.path.join(BASE, "fortbet.db"))
+DATABASE_URL = os.environ.get("DATABASE_URL", "")   # string de conexao do Supabase
 ODDS_KEY = os.environ.get("ODDS_API_KEY", "22afaffa1da56210d15163abfe249280")
 ODDS_BASE = "https://api.the-odds-api.com/v4"
 CACHE_MIN = int(os.environ.get("ODDS_CACHE_MINUTES", "15"))
@@ -22,34 +23,43 @@ app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax",
                   SESSION_COOKIE_SECURE=os.environ.get("HTTPS", "0") == "1", PERMANENT_SESSION_LIFETIME=86400 * 7)
 
 # ---------------------------------------------------------------- banco
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, login TEXT UNIQUE NOT NULL,
-  pw TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN('admin','cambista','usuario')), saldo INTEGER NOT NULL DEFAULT 0,
-  ativo INTEGER NOT NULL DEFAULT 1, criado_por INTEGER REFERENCES users(id), senha_padrao INTEGER DEFAULT 0, criado_em TEXT);
-CREATE TABLE IF NOT EXISTS transactions(id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT, tipo TEXT, de INTEGER, para INTEGER, valor INTEGER, descr TEXT);
-CREATE TABLE IF NOT EXISTS tickets(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id), data TEXT,
-  selecoes TEXT, odd REAL, valor INTEGER, retorno INTEGER, status TEXT DEFAULT 'aberto');
-CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY, ts REAL, v TEXT);
-CREATE TABLE IF NOT EXISTS logos(nome TEXT PRIMARY KEY, url TEXT);
-"""
+SCHEMA = [
+"""CREATE TABLE IF NOT EXISTS users(id SERIAL PRIMARY KEY, nome TEXT NOT NULL, login TEXT UNIQUE NOT NULL,
+  pw TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN('admin','cambista','usuario')), saldo BIGINT NOT NULL DEFAULT 0,
+  ativo INTEGER NOT NULL DEFAULT 1, criado_por INTEGER REFERENCES users(id), senha_padrao INTEGER DEFAULT 0, criado_em TEXT)""",
+"""CREATE TABLE IF NOT EXISTS transactions(id SERIAL PRIMARY KEY, data TEXT, tipo TEXT, de INTEGER, para INTEGER, valor BIGINT, descr TEXT)""",
+"""CREATE TABLE IF NOT EXISTS tickets(id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), data TEXT,
+  selecoes TEXT, odd DOUBLE PRECISION, valor BIGINT, retorno BIGINT, status TEXT DEFAULT 'aberto')""",
+"CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY, ts DOUBLE PRECISION, v TEXT)",
+"CREATE TABLE IF NOT EXISTS logos(nome TEXT PRIMARY KEY, url TEXT)"]
+class Conn:
+    """Embrulho fino do psycopg2: usa '?' nos SQLs e devolve o cursor (api parecida com sqlite)."""
+    def __init__(self):
+        self.c = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.DictCursor, connect_timeout=15,
+                                  **({} if "sslmode" in DATABASE_URL else {"sslmode": "require"}))
+        self.c.autocommit = True
+    def execute(self, sql, p=()):
+        cur = self.c.cursor(); cur.execute(sql.replace("?", "%s"), tuple(p)); return cur
+    def close(self): self.c.close()
 def db():
-    if "db" not in g:
-        g.db = sqlite3.connect(DB_PATH, isolation_level=None, timeout=15)
-        g.db.row_factory = sqlite3.Row
-        g.db.execute("PRAGMA foreign_keys=ON")
+    if "db" not in g: g.db = Conn()
     return g.db
 @app.teardown_appcontext
 def _close(e):
     c = g.pop("db", None)
     if c: c.close()
-def raw():
-    c = sqlite3.connect(DB_PATH, isolation_level=None, timeout=15); c.row_factory = sqlite3.Row; return c
+def raw(): return Conn()
 def now(): return datetime.now(timezone.utc).isoformat()
 def init_db():
-    c = raw(); c.executescript(SCHEMA)
-    if not c.execute("SELECT 1 FROM users WHERE role='admin'").fetchone():
-        c.execute("INSERT INTO users(nome,login,pw,role,senha_padrao,criado_em) VALUES('Administrador','admin',?, 'admin',1,?)",
-                  (generate_password_hash("admin123"), now()))
+    if not DATABASE_URL: raise SystemExit("Defina a variavel DATABASE_URL com a string de conexao do Supabase.")
+    c = raw()
+    for q in SCHEMA: c.execute(q)
+    try: c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS telefone TEXT")
+    except Exception: pass
+    c.execute("DELETE FROM logos WHERE url=''")   # tenta de novo os que falharam antes
+    c.execute("INSERT INTO users(nome,login,pw,role,senha_padrao,criado_em) SELECT 'Administrador','admin',?,'admin',1,? "
+              "WHERE NOT EXISTS (SELECT 1 FROM users WHERE role='admin') ON CONFLICT (login) DO NOTHING",
+              (generate_password_hash("admin123"), now()))
     c.close()
 init_db()
 
@@ -115,7 +125,7 @@ def state(u):
     c = db(); ids = scope_ids(c, u)
     q = lambda base, col: (base, ()) if ids is None else (base + f" WHERE {col} IN ({','.join('?'*len(ids))})", tuple(ids))
     us = [dict(id=str(r["id"]), nome=r["nome"], login=r["login"], role=r["role"], saldo=r["saldo"] / 100, ativo=bool(r["ativo"]),
-              criadoPor=str(r["criado_por"]) if r["criado_por"] else None, senhaPadrao=bool(r["senha_padrao"]))
+              criadoPor=str(r["criado_por"]) if r["criado_por"] else None, senhaPadrao=bool(r["senha_padrao"]), telefone=r["telefone"] or "")
           for r in c.execute(*q("SELECT * FROM users", "id"))]
     if ids is not None:
         tq = f"SELECT * FROM transactions WHERE de IN ({','.join('?'*len(ids))}) OR para IN ({','.join('?'*len(ids))})"; ta = tuple(ids) * 2
@@ -127,8 +137,12 @@ def state(u):
            for r in c.execute(*q("SELECT * FROM tickets", "user_id"))][::-1][:300]
     com = 0
     if u["role"] == "cambista":
-        com = c.execute("SELECT COALESCE(SUM(t.valor),0) FROM tickets t JOIN users x ON x.id=t.user_id WHERE x.criado_por=? AND t.status!='cancelado'", (u["id"],)).fetchone()[0] * COMISSAO / 100
-    return jsonify(ok=True, users=us, transactions=txs, tickets=tks, comissao=round(com, 2))
+        com = float(c.execute("SELECT COALESCE(SUM(t.valor),0) FROM tickets t JOIN users x ON x.id=t.user_id WHERE x.criado_por=? AND t.status!='cancelado'", (u["id"],)).fetchone()[0]) * COMISSAO / 100
+    cam = None
+    if u["role"] == "usuario" and u["criado_por"]:
+        r = c.execute("SELECT nome, telefone FROM users WHERE id=?", (u["criado_por"],)).fetchone()
+        if r: cam = dict(nome=r["nome"], telefone=r["telefone"] or "")
+    return jsonify(ok=True, users=us, transactions=txs, tickets=tks, comissao=round(com, 2), cambista=cam)
 
 # ---------------------------------------------------------------- contas / saldo
 def make_user(c, role, nome, login_, senha, por):
@@ -156,14 +170,14 @@ def new_usuario(u):
 def add_saldo(u):
     d = request.get_json(silent=True) or {}; c = db(); v = cents(d.get("valor"))
     if v <= 0: return err("Informe um valor válido.")
-    c.execute("BEGIN IMMEDIATE")
+    c.execute("BEGIN")
     try:
-        t = c.execute("SELECT * FROM users WHERE id=? AND ativo=1", (d.get("alvo"),)).fetchone()
+        t = c.execute("SELECT * FROM users WHERE id=? AND ativo=1 FOR UPDATE", (d.get("alvo"),)).fetchone()
         alvo_role = "cambista" if u["role"] == "admin" else "usuario"
         if not t or t["role"] != alvo_role or (u["role"] == "cambista" and t["criado_por"] != u["id"]):
             c.execute("ROLLBACK"); return err("Selecione uma conta válida.")
         if u["role"] == "cambista":   # ADM tem saldo ilimitado; cambista usa o proprio saldo
-            cur = c.execute("SELECT saldo FROM users WHERE id=?", (u["id"],)).fetchone()[0]
+            cur = c.execute("SELECT saldo FROM users WHERE id=? FOR UPDATE", (u["id"],)).fetchone()[0]
             if v > cur: c.execute("ROLLBACK"); return err("Seu saldo é insuficiente. Peça recarga ao ADM.")
             c.execute("UPDATE users SET saldo=saldo-? WHERE id=?", (v, u["id"]))
         c.execute("UPDATE users SET saldo=saldo+? WHERE id=?", (v, t["id"]))
@@ -174,6 +188,13 @@ def add_saldo(u):
     return jsonify(ok=True, nome=t["nome"])
 def can_manage(u, t):
     return t and ((u["role"] == "admin" and t["role"] == "cambista") or (u["role"] == "cambista" and t["role"] == "usuario" and t["criado_por"] == u["id"]))
+@app.post("/api/telefone")
+@need("cambista")
+def telefone(u):
+    d = "".join(ch for ch in str((request.get_json(silent=True) or {}).get("telefone", "")) if ch.isdigit())
+    if len(d) in (10, 11): d = "55" + d
+    if d and not 12 <= len(d) <= 15: return err("Número inválido. Use DDD + número, ex: 11 91234-5678.")
+    db().execute("UPDATE users SET telefone=? WHERE id=?", (d, u["id"])); return jsonify(ok=True)
 @app.post("/api/toggle/<int:uid>")
 @need("admin", "cambista")
 def toggle(u, uid):
@@ -191,9 +212,9 @@ def reset_senha(u):
 
 # ---------------------------------------------------------------- odds (API protegida no servidor) + logos
 def kv_get(k):
-    r = raw().execute("SELECT ts,v FROM kv WHERE k=?", (k,)).fetchone(); return (r["ts"], json.loads(r["v"])) if r else (0, None)
+    r = db().execute("SELECT ts,v FROM kv WHERE k=?", (k,)).fetchone(); return (r["ts"], json.loads(r["v"])) if r else (0, None)
 def kv_set(k, v):
-    c = raw(); c.execute("REPLACE INTO kv VALUES(?,?,?)", (k, time.time(), json.dumps(v))); c.close()
+    db().execute("INSERT INTO kv VALUES(?,?,?) ON CONFLICT (k) DO UPDATE SET ts=EXCLUDED.ts, v=EXCLUDED.v", (k, time.time(), json.dumps(v)))
 def fetch_group(grupo):
     sports = requests.get(f"{ODDS_BASE}/sports/", params={"apiKey": ODDS_KEY}, timeout=20)
     if sports.status_code == 401: raise RuntimeError("Chave da API de odds inválida.")
@@ -243,35 +264,61 @@ def odds(u):
         ev = [e for e in ev if started(e) and t - datetime.fromisoformat(e["commence"].replace("Z", "+00:00")).timestamp() < 3 * 3600
               or 0 < datetime.fromisoformat(e["commence"].replace("Z", "+00:00")).timestamp() - t < 3600]
     for e in ev: e["started"] = started(e)
-    return jsonify(ok=True, events=ev, updated=ts, logos=logo_map({n for e in ev for n in (e["home"], e["away"])}))
-_pending, _plock = set(), threading.Lock()
-def logo_map(names):
-    c = raw(); res = {}
+    return jsonify(ok=True, events=ev, updated=ts, logos=logo_map({n for e in ev for n in (e["home"], e["away"])}, "futebol" if grupo == "aovivo" else grupo)[0])
+_pending, _plock, _tries = {}, threading.Lock(), {}
+UA = {"User-Agent": "FortBet/1.0 (logos de times)"}
+def logo_map(names, grupo="futebol"):
+    c = db(); res, pend = {}, 0
     for n in names:
         r = c.execute("SELECT url FROM logos WHERE nome=?", (n,)).fetchone()
         if r is None:
-            with _plock: _pending.add(n)
+            pend += 1
+            with _plock: _pending.setdefault(n, grupo)
         elif r["url"]: res[n] = r["url"]
-    c.close(); return res
+    return res, pend
+def find_logo(n, grupo):
+    """Devolve a url, '' (nao existe de verdade) ou None (falha temporaria: tentar de novo)."""
+    transient = False
+    try:
+        r = requests.get("https://www.thesportsdb.com/api/v1/json/3/searchteams.php", params={"t": n}, timeout=10, headers=UA)
+        if r.ok:
+            for t in ((r.json() or {}).get("teams") or [])[:1]:
+                if t.get("strBadge") or t.get("strTeamBadge"): return t.get("strBadge") or t.get("strTeamBadge")
+        else: transient = True
+    except Exception: transient = True
+    try:
+        q = n + (" football club" if grupo == "futebol" else "")
+        r = requests.get("https://en.wikipedia.org/w/api.php", timeout=10, headers=UA, params=dict(action="query", format="json", generator="search",
+                         gsrsearch=q, gsrlimit=1, prop="pageimages", piprop="thumbnail", pithumbsize=96, redirects=1))
+        if r.ok:
+            for p in ((r.json().get("query") or {}).get("pages") or {}).values():
+                if (p.get("thumbnail") or {}).get("source"): return p["thumbnail"]["source"]
+        else: transient = True
+    except Exception: transient = True
+    return None if transient else ""
 def logo_worker():
     while True:
-        with _plock: n = _pending.pop() if _pending else None
-        if not n: time.sleep(2); continue
-        url = ""
         try:
-            r = requests.get("https://www.thesportsdb.com/api/v1/json/3/searchteams.php", params={"t": n}, timeout=10)
-            if r.status_code == 429: 
-                with _plock: _pending.add(n)
-                time.sleep(30); continue
-            teams = (r.json() or {}).get("teams") or []
-            url = (teams[0].get("strBadge") or teams[0].get("strTeamBadge") or "") if teams else ""
-        except Exception: pass
-        c = raw(); c.execute("REPLACE INTO logos VALUES(?,?)", (n, url)); c.close(); time.sleep(2.2)
+            with _plock: item = _pending.popitem() if _pending else None
+            if not item: time.sleep(2); continue
+            n, grupo = item; url = find_logo(n, grupo)
+            if url is None:
+                _tries[n] = _tries.get(n, 0) + 1
+                if _tries[n] < 6:
+                    with _plock: _pending[n] = grupo
+                    time.sleep(20); continue
+                url = ""
+            c = raw()
+            try: c.execute("INSERT INTO logos VALUES(?,?) ON CONFLICT (nome) DO UPDATE SET url=EXCLUDED.url", (n, url))
+            finally: c.close()
+            time.sleep(2.2)
+        except Exception: time.sleep(5)
 @app.post("/api/logos")
 @need()
 def logos():
-    names = (request.get_json(silent=True) or {}).get("names", [])[:300]
-    return jsonify(ok=True, logos=logo_map({str(n) for n in names}))
+    d = request.get_json(silent=True) or {}
+    res, pend = logo_map({str(n) for n in (d.get("names") or [])[:300]}, str(d.get("grupo", "futebol")))
+    return jsonify(ok=True, logos=res, pendentes=pend)
 threading.Thread(target=logo_worker, daemon=True).start()
 
 # ---------------------------------------------------------------- apostas
@@ -289,29 +336,32 @@ def bet(u):
         seen.add(ev["id"])
         if datetime.fromisoformat(ev["commence"].replace("Z", "+00:00")).timestamp() <= time.time():
             return err(f"Apostas encerradas: {ev['home']} x {ev['away']}.")
-        o = ev["odds"].get(str(s.get("market")))
+        mk = str(s.get("market")); o = ev["odds"].get(mk)
         if not o: return err("Mercado indisponível.")
-        odd *= o; final.append(dict(jogo=f"{ev['home']} x {ev['away']}", mercado=s["market"], odd=o))   # odd vem do servidor
-    odd = round(odd, 2); c = db(); c.execute("BEGIN IMMEDIATE")
+        odd *= o; final.append(dict(id=ev["id"], key=ev["key"], commence=ev["commence"], home=ev["home"], away=ev["away"], jogo=f"{ev['home']} x {ev['away']}",
+                          mercado=mk, palpite=ev["home"] if mk == "1" else ev["away"] if mk == "2" else "Empate", odd=o))   # odd vem do servidor
+    odd = round(odd, 2); c = db(); c.execute("BEGIN")
     try:
-        if stake > c.execute("SELECT saldo FROM users WHERE id=?", (u["id"],)).fetchone()[0]:
+        if stake > c.execute("SELECT saldo FROM users WHERE id=? FOR UPDATE", (u["id"],)).fetchone()[0]:
             c.execute("ROLLBACK"); return err("Saldo insuficiente. Peça uma recarga ao seu cambista.")
         c.execute("UPDATE users SET saldo=saldo-? WHERE id=?", (stake, u["id"]))
-        c.execute("INSERT INTO tickets(user_id,data,selecoes,odd,valor,retorno) VALUES(?,?,?,?,?,?)",
-                  (u["id"], now(), json.dumps(final), odd, stake, int(round(stake * odd))))
-        tx(c, "aposta", u["id"], None, stake, f"Aposta ({len(final)} seleç{'ões' if len(final) > 1 else 'ão'}) odd {odd:.2f}")
+        tid = c.execute("INSERT INTO tickets(user_id,data,selecoes,odd,valor,retorno) VALUES(?,?,?,?,?,?) RETURNING id",
+                        (u["id"], now(), json.dumps(final), odd, stake, int(round(stake * odd)))).fetchone()[0]
+        tx(c, "aposta", u["id"], None, stake, f"Bilhete #{tid} ({len(final)} seleç{'ões' if len(final) > 1 else 'ão'}) odd {odd:.2f}")
         c.execute("COMMIT")
     except Exception:
         c.execute("ROLLBACK"); raise
-    return jsonify(ok=True, retorno=stake * odd / 100)
+    cr = c.execute("SELECT nome, telefone FROM users WHERE id=?", (u["criado_por"],)).fetchone() if u["criado_por"] else None
+    return jsonify(ok=True, id=tid, odd=odd, valor=stake / 100, retorno=round(stake * odd) / 100, selecoes=final, usuario=u["nome"],
+                   cambista=dict(nome=cr["nome"], telefone=cr["telefone"] or "") if cr else None)
 @app.post("/api/tickets/<int:tid>/settle")
 @need("admin", "cambista")
 def settle(u, tid):
     res = (request.get_json(silent=True) or {}).get("resultado"); c = db()
     if res not in ("ganhou", "perdeu", "cancelado"): return err("Resultado inválido.")
-    c.execute("BEGIN IMMEDIATE")
+    c.execute("BEGIN")
     try:
-        t = c.execute("SELECT t.*, x.criado_por, x.nome FROM tickets t JOIN users x ON x.id=t.user_id WHERE t.id=?", (tid,)).fetchone()
+        t = c.execute("SELECT t.*, x.criado_por, x.nome FROM tickets t JOIN users x ON x.id=t.user_id WHERE t.id=? FOR UPDATE OF t", (tid,)).fetchone()
         if not t or t["status"] != "aberto" or (u["role"] == "cambista" and t["criado_por"] != u["id"]):
             c.execute("ROLLBACK"); return err("Bilhete não encontrado ou já encerrado.")
         c.execute("UPDATE tickets SET status=? WHERE id=?", (res, tid))
@@ -323,6 +373,37 @@ def settle(u, tid):
     except Exception:
         c.execute("ROLLBACK"); raise
     return jsonify(ok=True)
+
+# ---------------------------------------------------------------- placar ao vivo
+LIVE_TTL = int(os.environ.get("LIVE_POLL_SECONDS", "30"))
+_live = {}
+def _ts(iso): return datetime.fromisoformat(iso.replace("Z", "+00:00")).timestamp()
+def live_for_key(key):
+    ts, data = _live.get(key, (0, {}))
+    if time.time() - ts < LIVE_TTL: return data
+    def num(v):
+        try: return int(float(v))
+        except Exception: return None
+    try:
+        r = requests.get(f"{ODDS_BASE}/sports/{key}/scores/", params={"apiKey": ODDS_KEY, "daysFrom": 1}, timeout=15); r.raise_for_status()
+        out = {}
+        for e in r.json():
+            sc = {x["name"]: x["score"] for x in (e.get("scores") or [])}
+            out[e["id"]] = dict(home=num(sc.get(e["home_team"])), away=num(sc.get(e["away_team"])), completed=bool(e.get("completed")), started=e.get("scores") is not None or bool(e.get("completed")))
+        _live[key] = (time.time(), out); return out
+    except Exception:
+        _live[key] = (time.time(), data); return data      # mantem o ultimo placar e nao insiste a cada segundo
+@app.get("/api/live")
+@need()
+def live(u):
+    c = db(); ids = scope_ids(c, u); keys, want = set(), set(); t = time.time()
+    sql = "SELECT selecoes FROM tickets WHERE status='aberto'" + ("" if ids is None else f" AND user_id IN ({','.join('?'*len(ids))})")
+    for r in c.execute(sql, tuple(ids or ())):
+        for s_ in json.loads(r["selecoes"]):
+            if s_.get("key") and s_.get("commence") and 0 <= t - _ts(s_["commence"]) < 6 * 3600: keys.add(s_["key"]); want.add(s_["id"])
+    out = {}
+    for k in keys: out.update({i: v for i, v in live_for_key(k).items() if i in want})
+    return jsonify(ok=True, live=out)
 
 # ---------------------------------------------------------------- extras
 @app.post("/api/admin/seed")
@@ -343,7 +424,7 @@ def seed(u):
 @app.post("/api/admin/reset")
 @need("admin")
 def reset(u):
-    c = db(); c.execute("BEGIN IMMEDIATE")
+    c = db(); c.execute("BEGIN")
     for t in ("transactions", "tickets"): c.execute(f"DELETE FROM {t}")
     c.execute("DELETE FROM users WHERE role!='admin'"); c.execute("UPDATE users SET pw=?, senha_padrao=1 WHERE id=?", (generate_password_hash("admin123"), u["id"])); c.execute("COMMIT")
     session.clear(); return jsonify(ok=True)
@@ -352,13 +433,17 @@ def reset(u):
 def relatorios(u):
     c = db(); ids = [r[0] for r in c.execute("SELECT id FROM users WHERE role='usuario'" + ("" if u["role"] == "admin" else " AND criado_por=?"), () if u["role"] == "admin" else (u["id"],))]
     ph = ",".join("?" * len(ids)) or "NULL"; day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    row = lambda sql: c.execute(sql.format(ph), ids).fetchone()[0] or 0
+    row = lambda sql, extra=(): float(c.execute(sql.format(ph), list(ids) + list(extra)).fetchone()[0] or 0)
     tot = row("SELECT SUM(valor) FROM tickets WHERE user_id IN ({}) AND status!='cancelado'")
-    return jsonify(ok=True, hoje=row("SELECT COUNT(*) FROM tickets WHERE user_id IN ({}) AND data LIKE '" + day + "%'"),
+    return jsonify(ok=True, hoje=int(row("SELECT COUNT(*) FROM tickets WHERE user_id IN ({}) AND data >= ?", (day,))),
                    bruto=tot / 100, premios=row("SELECT SUM(retorno) FROM tickets WHERE user_id IN ({}) AND status='ganhou'") / 100,
-                   abertos=row("SELECT COUNT(*) FROM tickets WHERE user_id IN ({}) AND status='aberto'"),
+                   abertos=int(row("SELECT COUNT(*) FROM tickets WHERE user_id IN ({}) AND status='aberto'")),
                    comissao=round(tot * COMISSAO / 100, 2) if u["role"] == "cambista" else None)
 
+@app.get("/health")
+def health():
+    try: db().execute("SELECT 1").fetchone(); return "ok"
+    except Exception: return "erro", 500
 @app.get("/")
 def index(): return send_from_directory(os.path.join(BASE, "static"), "index.html")
 if __name__ == "__main__":
