@@ -1,20 +1,23 @@
-"""FORT.BET - backend Flask + SQLite.  Rodar: python app.py   (producao: gunicorn app:app)"""
-import os, json, time, threading, secrets
+"""Bola Esportiva - backend Flask + Supabase (Postgres).  Rodar: python app.py   (producao: gunicorn app:app)"""
+import os, re, json, time, queue, threading, secrets
+from concurrent.futures import ThreadPoolExecutor
 import psycopg2, psycopg2.extras
 from datetime import datetime, timezone
 import requests
 from flask import Flask, g, jsonify, has_request_context, request, session, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DATABASE_URL = os.environ.get("DATABASE_URL", "")   # string de conexao do Supabase
-ODDS_KEY = os.environ.get("ODDS_API_KEY", "22afaffa1da56210d15163abfe249280")
+ODDS_KEY = os.environ.get("ODDS_API_KEY", "")        # NUNCA coloque a chave no codigo: defina ODDS_API_KEY no Render
 ODDS_BASE = "https://api.the-odds-api.com/v4"
 CACHE_MIN = int(os.environ.get("ODDS_CACHE_MINUTES", "15"))
 COMISSAO = float(os.environ.get("COMISSAO_PCT", "10")) / 100   # % do cambista sobre apostas dos seus usuarios
 GROUPS = {"futebol": "Soccer", "basquete": "Basketball", "tenis": "Tennis", "mma": "Mixed Martial Arts"}
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1)      # Render fica atras de proxy: pega o IP real (limite de tentativas de login)
 _kf = os.path.join(BASE, "secret.key")
 if not os.path.exists(_kf):
     open(_kf, "w").write(secrets.token_hex(32))
@@ -33,22 +36,58 @@ SCHEMA = [
 "CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY, ts DOUBLE PRECISION, v TEXT)",
 "CREATE TABLE IF NOT EXISTS logos(nome TEXT PRIMARY KEY, url TEXT)"]
 class Conn:
-    """Embrulho fino do psycopg2: usa '?' nos SQLs e devolve o cursor (api parecida com sqlite)."""
+    """Embrulho fino do psycopg2: usa '?' nos SQLs e devolve o cursor. As conexoes ficam num pool e sao reaproveitadas."""
     def __init__(self):
+        self.c, self.tx = None, False
+        self._open()
+    def _open(self):
         self.c = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.DictCursor, connect_timeout=15,
+                                  keepalives=1, keepalives_idle=30, keepalives_interval=10, keepalives_count=3,
                                   **({} if "sslmode" in DATABASE_URL else {"sslmode": "require"}))
         self.c.autocommit = True
     def execute(self, sql, p=()):
-        cur = self.c.cursor(); cur.execute(sql.replace("?", "%s"), tuple(p)); return cur
-    def close(self): self.c.close()
+        head = sql.lstrip()[:8].upper()
+        for attempt in (0, 1):
+            try:
+                cur = self.c.cursor(); cur.execute(sql.replace("?", "%s"), tuple(p))
+                if head.startswith("BEGIN"): self.tx = True
+                elif head.startswith(("COMMIT", "ROLLBACK")): self.tx = False
+                return cur
+            except (psycopg2.OperationalError, psycopg2.InterfaceError):
+                if attempt or self.tx: raise          # conexao morta (o pooler do Supabase derruba as ociosas): reconecta 1 vez
+                try: self.c.close()
+                except Exception: pass
+                self._open()
+    def close(self): POOL.put(self)                   # devolve ao pool em vez de fechar
+class Pool:
+    def __init__(self, size):
+        self.free, self.sem = queue.LifoQueue(), threading.BoundedSemaphore(size)
+    def get(self):
+        if not self.sem.acquire(timeout=25): raise RuntimeError("Banco ocupado. Tente de novo em instantes.")
+        try:
+            try: return self.free.get_nowait()
+            except queue.Empty: return Conn()
+        except Exception:
+            self.sem.release(); raise
+    def put(self, c):
+        try:
+            if c.tx or c.c.get_transaction_status() != psycopg2.extensions.TRANSACTION_STATUS_IDLE:
+                c.c.rollback(); c.tx = False
+            if c.c.closed: raise psycopg2.InterfaceError("fechada")
+            self.free.put(c)
+        except Exception:
+            try: c.c.close()
+            except Exception: pass
+        finally: self.sem.release()
+POOL = Pool(int(os.environ.get("DB_POOL", "6")))
 def db():
-    if "db" not in g: g.db = Conn()
+    if "db" not in g: g.db = POOL.get()
     return g.db
 @app.teardown_appcontext
 def _close(e):
     c = g.pop("db", None)
-    if c: c.close()
-def raw(): return Conn()
+    if c: POOL.put(c)
+def raw(): return POOL.get()                          # fora de requisicao (threads de fundo): .close() devolve ao pool
 def now(): return datetime.now(timezone.utc).isoformat()
 def init_db():
     if not DATABASE_URL: raise SystemExit("Defina a variavel DATABASE_URL com a string de conexao do Supabase.")
@@ -56,7 +95,7 @@ def init_db():
     for q in SCHEMA: c.execute(q)
     try: c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS telefone TEXT")
     except Exception: pass
-    c.execute("DELETE FROM logos WHERE url=''")   # tenta de novo os que falharam antes
+    c.execute("ALTER TABLE logos ADD COLUMN IF NOT EXISTS ts DOUBLE PRECISION DEFAULT 0")
     c.execute("INSERT INTO users(nome,login,pw,role,senha_padrao,criado_em) SELECT 'Administrador','admin',?,'admin',1,? "
               "WHERE NOT EXISTS (SELECT 1 FROM users WHERE role='admin') ON CONFLICT (login) DO NOTHING",
               (generate_password_hash("admin123"), now()))
@@ -132,9 +171,10 @@ def state(u):
     else: tq, ta = "SELECT * FROM transactions", ()
     txs = [dict(id=str(r["id"]), data=r["data"], tipo=r["tipo"], de=str(r["de"]) if r["de"] else None, para=str(r["para"]) if r["para"] else None,
                 valor=r["valor"] / 100, desc=r["descr"]) for r in c.execute(tq + " ORDER BY id DESC LIMIT 500", ta)]
+    tsql, targs = q("SELECT * FROM tickets", "user_id")
     tks = [dict(id=str(r["id"]), userId=str(r["user_id"]), data=r["data"], selecoes=json.loads(r["selecoes"]), odd=r["odd"],
                 valor=r["valor"] / 100, retorno=r["retorno"] / 100, status=r["status"])
-           for r in c.execute(*q("SELECT * FROM tickets", "user_id"))][::-1][:300]
+           for r in c.execute(tsql + " ORDER BY id DESC LIMIT 300", targs)]
     com = 0
     if u["role"] == "cambista":
         com = float(c.execute("SELECT COALESCE(SUM(t.valor),0) FROM tickets t JOIN users x ON x.id=t.user_id WHERE x.criado_por=? AND t.status!='cancelado'", (u["id"],)).fetchone()[0]) * COMISSAO / 100
@@ -142,7 +182,7 @@ def state(u):
     if u["role"] == "usuario" and u["criado_por"]:
         r = c.execute("SELECT nome, telefone FROM users WHERE id=?", (u["criado_por"],)).fetchone()
         if r: cam = dict(nome=r["nome"], telefone=r["telefone"] or "")
-    return jsonify(ok=True, users=us, transactions=txs, tickets=tks, comissao=round(com, 2), cambista=cam)
+    return jsonify(ok=True, me=str(u["id"]), users=us, transactions=txs, tickets=tks, comissao=round(com, 2), cambista=cam)
 
 # ---------------------------------------------------------------- contas / saldo
 def make_user(c, role, nome, login_, senha, por):
@@ -211,108 +251,201 @@ def reset_senha(u):
     db().execute("UPDATE users SET pw=? WHERE id=?", (generate_password_hash(n), t["id"])); return jsonify(ok=True)
 
 # ---------------------------------------------------------------- odds (API protegida no servidor) + logos
+FORCE_MIN = int(os.environ.get("ODDS_FORCE_MIN_SECONDS", "60"))   # botao "Atualizar" nao gasta creditos se o cache tem menos que isso
+IDLE_H = float(os.environ.get("ODDS_IDLE_HOURS", "1"))            # renova sozinho so enquanto alguem usou esse esporte nesta janela
+_odds, _seen, _btry = {}, {}, {}                                   # cache em memoria: esporte -> (ts, eventos)
+_glocks = {g_: threading.Lock() for g_ in GROUPS}
+
+def run_db(fn):
+    """Roda fn(conexao) usando a conexao da requisicao, ou uma do pool quando estamos numa thread de fundo."""
+    if has_request_context(): return fn(db())
+    c = raw()
+    try: return fn(c)
+    finally: c.close()
 def kv_get(k):
-    r = db().execute("SELECT ts,v FROM kv WHERE k=?", (k,)).fetchone(); return (r["ts"], json.loads(r["v"])) if r else (0, None)
+    def f(c):
+        r = c.execute("SELECT ts,v FROM kv WHERE k=?", (k,)).fetchone(); return (r["ts"], json.loads(r["v"])) if r else (0, None)
+    return run_db(f)
 def kv_set(k, v):
-    db().execute("INSERT INTO kv VALUES(?,?,?) ON CONFLICT (k) DO UPDATE SET ts=EXCLUDED.ts, v=EXCLUDED.v", (k, time.time(), json.dumps(v)))
+    run_db(lambda c: c.execute("INSERT INTO kv VALUES(?,?,?) ON CONFLICT (k) DO UPDATE SET ts=EXCLUDED.ts, v=EXCLUDED.v", (k, time.time(), json.dumps(v))))
+
+def parse_events(data, key, grupo):
+    out = []
+    for ev in data:
+        bm = next((b for b in ev.get("bookmakers", []) if any(m["key"] == "h2h" for m in b["markets"])), None)
+        if not bm: continue
+        mk = next(m for m in bm["markets"] if m["key"] == "h2h")
+        o = {x["name"]: x["price"] for x in mk["outcomes"]}
+        if ev["home_team"] not in o or ev["away_team"] not in o: continue
+        out.append(dict(id=ev["id"], home=ev["home_team"], away=ev["away_team"], commence=ev["commence_time"],
+                        league=ev["sport_title"], key=ev.get("sport_key", key), grupo=grupo,
+                        odds={"1": o[ev["home_team"]], "X": o.get("Draw"), "2": o[ev["away_team"]]}))
+    return out
 def fetch_group(grupo):
+    if not ODDS_KEY: raise RuntimeError("Chave da API de odds não configurada (defina ODDS_API_KEY no Render).")
     sports = requests.get(f"{ODDS_BASE}/sports/", params={"apiKey": ODDS_KEY}, timeout=20)
     if sports.status_code == 401: raise RuntimeError("Chave da API de odds inválida.")
     if sports.status_code == 429: raise RuntimeError("Limite de requisições da API excedido.")
     sports.raise_for_status()
     lst = [s for s in sports.json() if s["group"] == GROUPS[grupo] and s["active"] and not s.get("has_outrights")]
-    out = []
-    for s in lst:
-        r = requests.get(f"{ODDS_BASE}/sports/{s['key']}/odds/", timeout=20,
-                         params={"apiKey": ODDS_KEY, "regions": "eu", "markets": "h2h", "oddsFormat": "decimal", "dateFormat": "iso"})
-        if not r.ok: continue
-        for ev in r.json():
-            bm = next((b for b in ev.get("bookmakers", []) if any(m["key"] == "h2h" for m in b["markets"])), None)
-            if not bm: continue
-            mk = next(m for m in bm["markets"] if m["key"] == "h2h")
-            o = {x["name"]: x["price"] for x in mk["outcomes"]}
-            if ev["home_team"] not in o or ev["away_team"] not in o: continue
-            out.append(dict(id=ev["id"], home=ev["home_team"], away=ev["away_team"], commence=ev["commence_time"],
-                            league=ev["sport_title"], key=ev["sport_key"], grupo=grupo,
-                            odds={"1": o[ev["home_team"]], "X": o.get("Draw"), "2": o[ev["away_team"]]}))
+    def one(s):                                    # antes: um campeonato por vez (30+ chamadas em fila). Agora em paralelo.
+        try:
+            r = requests.get(f"{ODDS_BASE}/sports/{s['key']}/odds/", timeout=20,
+                             params={"apiKey": ODDS_KEY, "regions": "eu", "markets": "h2h", "oddsFormat": "decimal", "dateFormat": "iso"})
+            return parse_events(r.json(), s["key"], grupo) if r.ok else None
+        except Exception:
+            return None
+    with ThreadPoolExecutor(max_workers=8) as ex: parts = list(ex.map(one, lst))
+    out = [e for p in parts if p for e in p]
+    if lst and all(p is None for p in parts): raise RuntimeError("API de odds indisponível no momento.")   # mantem o cache antigo
     if not out and not lst: raise RuntimeError("Nenhum campeonato ativo no momento.")
     return out
+
+def cached(grupo):
+    m = _odds.get(grupo)
+    if m is None:
+        ts, v = kv_get("odds:" + grupo); m = _odds[grupo] = (ts, v)
+    return m
+def refresh(grupo):
+    v = fetch_group(grupo); ts = time.time(); _odds[grupo] = (ts, v)
+    try: kv_set("odds:" + grupo, v)
+    except Exception as e: print("kv_set odds falhou:", e, flush=True)
+    return v, ts
+def bg_refresh(grupo):
+    lk = _glocks[grupo]
+    if not lk.acquire(blocking=False): return
+    try: refresh(grupo)
+    except Exception as e: print("refresh odds falhou:", grupo, e, flush=True)
+    finally: lk.release()
 def get_group(grupo, force=False):
-    ts, v = kv_get("odds:" + grupo)
-    if v is not None and not force and time.time() - ts < CACHE_MIN * 60: return v, ts
-    try:
-        v = fetch_group(grupo); kv_set("odds:" + grupo, v); return v, time.time()
-    except Exception:
-        if v is not None: return v, ts      # usa cache antigo se a API falhar
-        raise
+    """Responde na hora com o cache (mesmo velho) e renova por tras. So espera a API quando nunca houve cache."""
+    _seen[grupo] = time.time()
+    ts, v = cached(grupo); age = time.time() - ts
+    if v is not None and (not force or age < FORCE_MIN):
+        if age >= CACHE_MIN * 60 and time.time() - _btry.get(grupo, 0) > 60:
+            _btry[grupo] = time.time(); threading.Thread(target=bg_refresh, args=(grupo,), daemon=True).start()
+        return v, ts
+    with _glocks[grupo]:
+        ts2, v2 = cached(grupo)
+        if v2 is not None and time.time() - ts2 < FORCE_MIN: return v2, ts2      # outra requisicao acabou de renovar
+        try: return refresh(grupo)
+        except Exception:
+            if v2 is not None: return v2, ts2
+            raise
+def odds_loop():
+    time.sleep(3)
+    try:                                           # aquece o futebol assim que o servidor sobe (antes do 1o login)
+        ts, v = cached("futebol")
+        if v is None or time.time() - ts >= CACHE_MIN * 60: _seen["futebol"] = time.time(); bg_refresh("futebol")
+    except Exception as e: print("aquecimento falhou:", e, flush=True)
+    while True:
+        time.sleep(60)
+        for g_ in GROUPS:
+            try:
+                if time.time() - _seen.get(g_, 0) > IDLE_H * 3600: continue
+                if time.time() - cached(g_)[0] >= CACHE_MIN * 60: bg_refresh(g_)
+            except Exception: pass
 def find_event(eid):
     for g_ in GROUPS:
-        _, v = kv_get("odds:" + g_)
-        for e in v or []:
+        for e in cached(g_)[1] or []:
             if e["id"] == eid: return e
 @app.get("/api/odds")
 @need()
 def odds(u):
     grupo = request.args.get("grupo", "futebol"); force = request.args.get("force") == "1"
+    if grupo != "aovivo" and grupo not in GROUPS: return err("Esporte inválido.")
+    base = "futebol" if grupo == "aovivo" else grupo
+    try: ev, ts = get_group(base, force)
+    except Exception as e: return jsonify(ok=False, msg=str(e)), 502
+    t = time.time(); out = []
+    for e in ev:
+        st = _ts(e["commence"])
+        if grupo == "aovivo" and not (-3600 < t - st < 3 * 3600): continue      # comecou ha <3h ou comeca em <1h
+        out.append({**e, "started": st <= t})                                    # copia: nao suja o cache
+    return jsonify(ok=True, events=out, updated=ts, logos=logo_map({n for e in out for n in (e["home"], e["away"])}, base)[0])
+
+# ---- logos dos times
+_pending, _plock, _tries, _inflight = {}, threading.Lock(), {}, set()
+LOGO, LOGO_TS = {}, {}                             # memoria: nome -> url ('' = nao achou) / quando tentou
+LOGO_RETRY = 6 * 3600                              # quem nao foi achado tenta de novo depois de 6h
+SPORTSDB_KEY = os.environ.get("SPORTSDB_KEY", "3")             # "3" = chave gratis (30 req/min). Chave paga libera 100 req/min.
+SPORTSDB_DELAY = float(os.environ.get("SPORTSDB_DELAY", "2.2"))
+UA = {"User-Agent": "BolaEsportiva/1.0 (logos de times)"}
+def load_logos():
     try:
-        ev, ts = get_group("futebol" if grupo == "aovivo" else grupo, force)
-    except Exception as e:
-        return jsonify(ok=False, msg=str(e)), 502
-    t = time.time()
-    def started(e): return datetime.fromisoformat(e["commence"].replace("Z", "+00:00")).timestamp() <= t
-    if grupo == "aovivo":
-        ev = [e for e in ev if started(e) and t - datetime.fromisoformat(e["commence"].replace("Z", "+00:00")).timestamp() < 3 * 3600
-              or 0 < datetime.fromisoformat(e["commence"].replace("Z", "+00:00")).timestamp() - t < 3600]
-    for e in ev: e["started"] = started(e)
-    return jsonify(ok=True, events=ev, updated=ts, logos=logo_map({n for e in ev for n in (e["home"], e["away"])}, "futebol" if grupo == "aovivo" else grupo)[0])
-_pending, _plock, _tries = {}, threading.Lock(), {}
-UA = {"User-Agent": "FortBet/1.0 (logos de times)"}
+        c = raw()
+        try:
+            for r in c.execute("SELECT nome,url,ts FROM logos"): LOGO[r["nome"]] = r["url"] or ""; LOGO_TS[r["nome"]] = r["ts"] or 0
+        finally: c.close()
+    except Exception as e: print("load_logos falhou:", e, flush=True)
+load_logos()
 def logo_map(names, grupo="futebol"):
-    c = db(); res, pend = {}, 0
+    """Tudo em memoria (antes: 1 consulta ao banco por time a cada pedido de odds)."""
+    res, pend, t = {}, 0, time.time()
     for n in names:
-        r = c.execute("SELECT url FROM logos WHERE nome=?", (n,)).fetchone()
-        if r is None:
-            pend += 1
-            with _plock: _pending.setdefault(n, grupo)
-        elif r["url"]: res[n] = r["url"]
+        u_ = LOGO.get(n)
+        if u_: res[n] = u_; continue
+        if grupo in ("tenis", "mma"): continue                  # sao atletas, nao times
+        with _plock:
+            if n in _inflight: pend += 1; continue
+        if u_ is not None and t - LOGO_TS.get(n, 0) < LOGO_RETRY: continue      # ja tentou e nao existe
+        pend += 1
+        with _plock: _pending.setdefault(n, grupo)
     return res, pend
+def _sportsdb(q, soccer):
+    r = requests.get(f"https://www.thesportsdb.com/api/v1/json/{SPORTSDB_KEY}/searchteams.php", params={"t": q}, timeout=10, headers=UA)
+    if not r.ok: return None, True                              # 429 (limite) ou erro do servidor: tentar depois
+    for t in ((r.json() or {}).get("teams") or []):
+        if soccer and t.get("strSport") not in (None, "Soccer"): continue
+        b = t.get("strBadge") or t.get("strTeamBadge")
+        if b: return b, False
+    return None, False
 def find_logo(n, grupo):
     """Devolve a url, '' (nao existe de verdade) ou None (falha temporaria: tentar de novo)."""
-    transient = False
+    transient, soccer = False, grupo == "futebol"
+    short = re.sub(r"^(FC|AFC|CF|SC|AC|AS|CD|RC|RCD|SK|FK)\s+|\s+(FC|AFC|CF|SC|AC)$", "", n).strip()
+    for q in dict.fromkeys([n, short]):
+        if not q: continue
+        try:
+            b, tr = _sportsdb(q, soccer)
+            if b: return b
+            if tr: transient = True; break                      # limite da API: nao insiste
+        except Exception: transient = True; break
+        time.sleep(SPORTSDB_DELAY)
     try:
-        r = requests.get("https://www.thesportsdb.com/api/v1/json/3/searchteams.php", params={"t": n}, timeout=10, headers=UA)
-        if r.ok:
-            for t in ((r.json() or {}).get("teams") or [])[:1]:
-                if t.get("strBadge") or t.get("strTeamBadge"): return t.get("strBadge") or t.get("strTeamBadge")
-        else: transient = True
-    except Exception: transient = True
-    try:
-        q = n + (" football club" if grupo == "futebol" else "")
         r = requests.get("https://en.wikipedia.org/w/api.php", timeout=10, headers=UA, params=dict(action="query", format="json", generator="search",
-                         gsrsearch=q, gsrlimit=1, prop="pageimages", piprop="thumbnail", pithumbsize=96, redirects=1))
+                         gsrsearch=n + (" football club" if soccer else ""), gsrlimit=1, prop="pageimages", piprop="thumbnail", pithumbsize=96, redirects=1))
         if r.ok:
             for p in ((r.json().get("query") or {}).get("pages") or {}).values():
-                if (p.get("thumbnail") or {}).get("source"): return p["thumbnail"]["source"]
+                src = (p.get("thumbnail") or {}).get("source")
+                if src and re.search(r"\.(png|svg)", src, re.I): return src      # escudo e png/svg; foto (jpg) de jogador/estadio e ignorada
         else: transient = True
     except Exception: transient = True
     return None if transient else ""
 def logo_worker():
     while True:
+        item = None
         try:
-            with _plock: item = _pending.popitem() if _pending else None
+            with _plock:
+                if _pending: item = _pending.popitem(); _inflight.add(item[0])
             if not item: time.sleep(2); continue
             n, grupo = item; url = find_logo(n, grupo)
             if url is None:
                 _tries[n] = _tries.get(n, 0) + 1
                 if _tries[n] < 6:
-                    with _plock: _pending[n] = grupo
+                    with _plock: _pending[n] = grupo; _inflight.discard(n)
                     time.sleep(20); continue
                 url = ""
+            LOGO[n] = url; LOGO_TS[n] = time.time()
             c = raw()
-            try: c.execute("INSERT INTO logos VALUES(?,?) ON CONFLICT (nome) DO UPDATE SET url=EXCLUDED.url", (n, url))
+            try: c.execute("INSERT INTO logos(nome,url,ts) VALUES(?,?,?) ON CONFLICT (nome) DO UPDATE SET url=EXCLUDED.url, ts=EXCLUDED.ts", (n, url, time.time()))
             finally: c.close()
-            time.sleep(2.2)
-        except Exception: time.sleep(5)
+            with _plock: _inflight.discard(n)
+            time.sleep(SPORTSDB_DELAY)
+        except Exception:
+            if item:
+                with _plock: _inflight.discard(item[0])
+            time.sleep(5)
 @app.post("/api/logos")
 @need()
 def logos():
@@ -320,6 +453,7 @@ def logos():
     res, pend = logo_map({str(n) for n in (d.get("names") or [])[:300]}, str(d.get("grupo", "futebol")))
     return jsonify(ok=True, logos=res, pendentes=pend)
 threading.Thread(target=logo_worker, daemon=True).start()
+threading.Thread(target=odds_loop, daemon=True).start()
 
 # ---------------------------------------------------------------- apostas
 @app.post("/api/bets")
