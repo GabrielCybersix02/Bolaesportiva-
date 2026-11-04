@@ -379,13 +379,16 @@ FD_BASE = "https://api.football-data.org/v4"
 FD_COMPS = ["PL", "PD", "SA", "BL1", "FL1", "PPL", "DED", "ELC", "BSA", "CL", "EC", "WC"]   # campeonatos do plano gratis
 FD_REFRESH = 24 * 3600                                         # recarrega a tabela de escudos 1x por dia (12 chamadas)
 _fd = {}                                                       # nome normalizado -> url do escudo
-_STOP = {"fc", "cf", "afc", "sc", "ac", "as", "cd", "rc", "rcd", "sk", "fk", "ssc", "ud", "sd", "ca", "us", "ss", "club", "de", "calcio", "the"}
+_STOP = {"fc", "cf", "afc", "sc", "ac", "as", "cd", "rc", "rcd", "sk", "fk", "ssc", "ud", "sd", "ca", "us", "ss", "club", "clube", "ec", "cr", "de", "calcio", "the"}
 def norm(s):
     """'Club Atlético de Madrid' e 'Atlético Madrid' viram a mesma chave."""
-    s = unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode().lower().replace("&", " and ")
+    s = unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode().lower().replace("&", " and ").replace("athletico", "atletico")
     return "".join(t for t in re.findall(r"[a-z0-9]+", s) if t not in _STOP)
 def fd_lookup(n):
-    return _fd.get(norm(n)) or None
+    k = norm(n); u = _fd.get(k)
+    if u or len(k) < 8: return u or None
+    hit = {v for key, v in _fd.items() if len(key) >= 8 and (k in key or key in k)}      # nome parecido: so vale se der 1 unico escudo
+    return hit.pop() if len(hit) == 1 else None
 def _hnum(r, h, default):
     try: return int(float(r.headers.get(h, default)))
     except Exception: return default
