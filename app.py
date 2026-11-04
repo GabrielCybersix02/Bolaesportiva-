@@ -549,6 +549,32 @@ def logos():
     d = request.get_json(silent=True) or {}
     res, pend = logo_map({str(n) for n in (d.get("names") or [])[:300]}, str(d.get("grupo", "futebol")))
     return jsonify(ok=True, logos=res, pendentes=pend)
+AF_KEY = os.environ.get("APIFOOTBALL_KEY", "").strip().strip("\"'").strip()   # chave SO na variavel de ambiente
+AF_BASE = "https://v3.football.api-sports.io"
+def af(path, **params):
+    r = requests.get(AF_BASE + path, headers={**UA, "x-apisports-key": AF_KEY}, params=params, timeout=20)
+    try: return r.json()
+    except Exception: return {"errors": f"resposta invalida ({r.status_code})"}
+@app.get("/api/admin/apifootball")
+@need("admin")
+def af_diag(u):
+    """Diagnostico da API-Football: /api/admin/apifootball?q=saudi  e depois  ?liga=307&ano=2025  (testa se o plano libera odds)."""
+    if not AF_KEY: return err("Defina APIFOOTBALL_KEY no Render.")
+    out = {}
+    try:
+        st = (af("/status").get("response") or {})
+        out["plano"] = (st.get("subscription") or {}).get("plan"); out["chamadas"] = st.get("requests")
+        lg = af("/leagues", search=request.args.get("q", "saudi"))
+        out["erros_ligas"] = lg.get("errors")
+        out["ligas"] = [dict(id=x["league"]["id"], nome=x["league"]["name"], pais=x["country"]["name"],
+                             temporadas=[dict(ano=y["year"], odds=y["coverage"]["odds"], atual=y["current"]) for y in x["seasons"][-2:]])
+                        for x in (lg.get("response") or [])[:8]]
+        if request.args.get("liga"):
+            od = af("/odds", league=request.args["liga"], season=request.args.get("ano"))
+            out["odds"] = dict(erros=od.get("errors"), jogos_com_odds=od.get("results"),
+                               amostra=[dict(jogo=x["fixture"]["id"], casas=len(x.get("bookmakers") or [])) for x in (od.get("response") or [])[:3]])
+    except Exception as e: out["excecao"] = repr(e)[:200]
+    return jsonify(ok=True, **out)
 @app.get("/api/admin/ligas")
 @need("admin")
 def ligas(u):                                                  # lista as ligas de futebol que o The Odds API oferece (nao gasta creditos)
