@@ -373,6 +373,15 @@
                 <button onclick="navigateTo('relatorios'); toggleSideMenu();" data-roles="admin,cambista" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
                     <i class="fa-solid fa-chart-line text-brand-blue w-5"></i> Relatórios
                 </button>
+                <button onclick="navigateTo('acertos'); toggleSideMenu();" data-roles="usuario" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
+                    <i class="fa-solid fa-scale-balanced text-brand-blue w-5"></i> Meu Acerto
+                </button>
+                <button onclick="navigateTo('acertos'); toggleSideMenu();" data-roles="cambista" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
+                    <i class="fa-solid fa-scale-balanced text-brand-blue w-5"></i> Acertos dos Clientes
+                </button>
+                <button onclick="navigateTo('acertos'); toggleSideMenu();" data-roles="admin" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
+                    <i class="fa-solid fa-scale-balanced text-brand-blue w-5"></i> Acertos (Fiado)
+                </button>
                 <button onclick="navigateTo('comissao'); toggleSideMenu();" data-roles="cambista" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
                     <i class="fa-solid fa-sack-dollar text-brand-blue w-5"></i> Minha Comissão
                 </button>
@@ -877,7 +886,7 @@
             } else {
                 document.getElementById('view-generic').classList.remove('hidden');
                 await renderGeneric(viewName);
-                if (viewName === 'bilhetes' || viewName === 'relatorios') softState(viewName, () => renderGeneric(viewName));
+                if (viewName === 'bilhetes' || viewName === 'relatorios' || viewName === 'acertos') softState(viewName, () => renderGeneric(viewName));
             }
         }
         function gcard(rows) { return rows; }
@@ -891,6 +900,12 @@
                 if (!same) B.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">Carregando...</p>';
                 const r = await api('/comissoes'); if (!r.ok) { B.innerHTML = '<p class="text-xs text-red-600 font-semibold">' + esc(r.msg || 'Erro ao carregar.') + '</p>'; return; }
                 B.innerHTML = comissaoHtml(r, adm); return;
+            }
+            if (v === 'acertos') {
+                const role = u.role; C.innerText = 'Financeiro'; T.innerText = role === 'usuario' ? 'Meu Acerto' : 'Acertos (Fiado)';
+                if (!same) B.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">Carregando...</p>';
+                const r = await api('/acertos'); if (!r.ok) { B.innerHTML = '<p class="text-xs text-red-600 font-semibold">' + esc(r.msg || 'Erro ao carregar.') + '</p>'; return; }
+                B.innerHTML = acertosHtml(r, role); return;
             }
             if (v === 'relatorios') {
                 C.innerText = 'Gestão'; T.innerText = 'Relatórios / Bilhetes';
@@ -914,6 +929,38 @@
         }
         const sCard = (l, v) => `<div class="bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-center"><span class="text-[11px] text-gray-500 font-semibold block">${l}</span><b class="text-sm text-gray-900">${v}</b></div>`;
         const sTitle = t => `<p class="text-xs font-extrabold uppercase text-gray-700 pt-2">${t}</p>`;
+        const vencTxt = r => { const d = String(r.vencimento).split('-'); const dd = d[2] + '/' + d[1]; return r.dias === 0 ? 'hoje (segunda, ' + dd + ')' : 'segunda, ' + dd + ' (em ' + r.dias + (r.dias === 1 ? ' dia)' : ' dias)'); };
+        function acertoBadge(a) { return a < 0 ? `<b class="text-red-600">Deve ${money(-a)}</b>` : a > 0 ? `<b class="text-emerald-600">A receber ${money(a)}</b>` : '<b class="text-gray-500">Em dia</b>'; }
+        function acertoRow(c, canPay) {
+            const a = c.acerto;
+            const btn = canPay && a !== 0 ? `<button onclick="pagarAcerto('${c.id}', ${Math.abs(a)}, ${a < 0 ? 1 : 0}, '${esc(c.nome).replace(/'/g, '')}')" class="mt-2 w-full ${a < 0 ? 'bg-emerald-600' : 'bg-brand-blue'} text-white py-1.5 rounded font-extrabold text-[11px] uppercase">${a < 0 ? 'Recebi ' + money(-a) + ' do cliente' : 'Paguei ' + money(a) + ' ao cliente'}</button>` : '';
+            return `<div class="border-t border-gray-100 py-2.5 text-xs"><div class="flex items-center justify-between gap-2"><b class="text-gray-800 truncate">${esc(c.nome)}${c.ativo ? '' : ' <span class="text-red-600 font-semibold">(bloqueado)</span>'}</b><span class="shrink-0">${acertoBadge(a)}</span></div>
+                <span class="text-[11px] text-gray-500 block mt-0.5">Limite dado ${money(c.limite)} • Saldo ${money(c.saldo)} • Em jogo ${money(c.emJogo)}</span>
+                <span class="text-[11px] text-gray-500 block">${c.bilhetes} bilhetes • Apostado ${money(c.apostado)} • Prêmios ${money(c.premios)}</span>${btn}</div>`;
+        }
+        function acertosHtml(r, role) {
+            const info = '<p class="text-[11px] text-gray-500 font-medium text-center">Bilhetes ainda em aberto não entram na conta: só contam depois do resultado.</p>';
+            if (role === 'usuario') {
+                const e = r.eu; if (!e) return '<p class="text-xs text-gray-400 text-center py-4">Sem dados.</p>';
+                const a = e.acerto, cor = a < 0 ? 'text-red-300' : a > 0 ? 'text-emerald-300' : 'text-gray-200';
+                const msg = a < 0 ? 'Você deve ao seu cambista' : a > 0 ? 'Seu cambista deve te pagar' : 'Você está em dia';
+                const sub = a === 0 ? 'Nada a acertar por enquanto.' : (a < 0 ? 'Pagar' : 'Receber') + ' até ' + vencTxt(r);
+                return `<div class="com-card text-white rounded-xl p-4 text-center shadow-md"><span class="text-[11px] font-semibold text-blue-200 block">${msg}</span><span class="text-3xl font-black ${cor}">${money(Math.abs(a))}</span><span class="text-[11px] text-blue-200 block mt-1">${sub}</span></div>
+                    <div class="grid grid-cols-2 gap-2">${sCard('Limite recebido', money(e.limite))}${sCard('Saldo para apostar', money(e.saldo))}${sCard('Em jogo (abertos)', money(e.emJogo))}${sCard('Prêmios ganhos', money(e.premios))}</div>${info}`
+                    + (r.historico.length ? sTitle('Acertos já feitos') + r.historico.map(h => `<div class="flex justify-between border-t border-gray-100 py-2 text-xs"><span class="text-gray-500">${new Date(h.data).toLocaleDateString('pt-BR')}</span><b class="${h.valor < 0 ? 'text-red-600' : 'text-emerald-600'}">${h.valor < 0 ? 'Você pagou ' + money(-h.valor) : 'Você recebeu ' + money(h.valor)}</b></div>`).join('') : '');
+            }
+            const adm = role === 'admin';
+            let h = `<div class="grid grid-cols-2 gap-2"><div class="com-card text-white rounded-xl p-3 text-center shadow-md"><span class="text-[11px] font-semibold text-blue-200 block">${adm ? 'Clientes devem (total)' : 'A receber dos clientes'}</span><span class="text-xl font-black text-emerald-300">${money(r.receber)}</span></div>
+                <div class="com-card text-white rounded-xl p-3 text-center shadow-md"><span class="text-[11px] font-semibold text-blue-200 block">${adm ? 'A pagar aos clientes (total)' : 'A pagar aos clientes'}</span><span class="text-xl font-black text-red-300">${money(r.pagar)}</span></div></div>
+                <p class="text-[11px] text-gray-600 font-semibold text-center">Próximo acerto: ${vencTxt(r)}</p>${info}`;
+            if (adm) return h + (r.cambistas.length ? r.cambistas.map(g => `<div class="pt-2">${sTitle(esc(g.nome))}<p class="text-[11px] text-gray-500 mb-1">Receber ${money(g.receber)} • Pagar ${money(g.pagar)} • ${g.clientes.length} clientes</p>${g.clientes.map(c => acertoRow(c, true)).join('')}</div>`).join('') : '<p class="text-xs text-gray-400 text-center py-3">Nenhum cliente cadastrado.</p>');
+            return h + sTitle('Clientes') + (r.clientes.length ? r.clientes.map(c => acertoRow(c, true)).join('') : '<p class="text-xs text-gray-400 text-center py-3">Você ainda não tem clientes.</p>');
+        }
+        async function pagarAcerto(id, valor, cliPagou, nome) {
+            if (!confirm(cliPagou ? `Confirmar que ${nome} pagou ${money(valor)} a você?` : `Confirmar que você pagou ${money(valor)} a ${nome}?`)) return;
+            const r = await api('/acertos/pagar', { cliente: id }); if (!r.ok) { showToast(r.msg, 'err'); return; }
+            showToast('Acerto registrado!'); await loadState(); renderGeneric('acertos'); refreshHome();
+        }
         function comissaoHtml(r, adm) {
             let h = `<div class="com-card text-white rounded-xl p-4 text-center shadow-md"><span class="text-[11px] font-semibold text-blue-200 block">${adm ? 'Comissão total dos cambistas' : 'Comissão acumulada'}</span><span class="text-3xl font-black text-emerald-300">${money(r.comissao)}</span></div>
                 <div class="grid grid-cols-2 gap-2">${sCard('Entrada em jogos', money(r.apostado))}${sCard(adm ? 'Cambistas' : 'Bilhetes', adm ? r.cambistas.length : r.bilhetes)}</div>
@@ -973,7 +1020,7 @@
                 if (p && s && v.started && !v.completed && (p.home !== v.home || p.away !== v.away)) showToast(`⚽ GOL! ${s.home} ${v.home ?? 0} x ${v.away ?? 0} ${s.away}`, 'warn');
             });
             LIVE = r.live;
-            if (currentView === 'bilhetes' || currentView === 'relatorios' || currentView === 'comissao') renderGeneric(currentView);
+            if (currentView === 'bilhetes' || currentView === 'relatorios' || currentView === 'comissao' || currentView === 'acertos') renderGeneric(currentView);
         }
         async function settleTicket(id, resultado) {
             if (!confirm('Confirmar resultado do bilhete #' + id + '?')) return;
@@ -1178,7 +1225,7 @@
         const adminCreateCambista = () => act('/cambistas', { nome: val('nc-nome'), login: val('nc-login'), senha: document.getElementById('nc-senha').value }, 'Cambista criado com sucesso!');
         const camCreateUser = () => act('/usuarios', { nome: val('nu-nome'), login: val('nu-login'), senha: document.getElementById('nu-senha').value }, 'Usuário cadastrado com sucesso!');
         const adminAddBalance = () => act('/saldo', { alvo: val('ab-cambista'), valor: parseValor('ab-valor') }, 'Saldo adicionado!');
-        const camAddBalance = () => act('/saldo', { alvo: val('cb-usuario'), valor: parseValor('cb-valor') }, 'Saldo adicionado!');
+        const camAddBalance = () => act('/saldo', { alvo: val('cb-usuario'), valor: parseValor('cb-valor') }, 'Limite liberado! Entra na conta do acerto de segunda.');
         const saveTel = () => act('/telefone', { telefone: val('tel-num') }, 'Número salvo!');
         const resetPw = () => act('/reset-senha', { alvo: val('rp-conta'), nova: document.getElementById('rp-nova').value }, 'Senha redefinida!');
         function quickPick(selId, id, focusId) {
@@ -1249,13 +1296,14 @@
                 const users = DB.users.filter(x => x.role === 'usuario' && x.criadoPor === u.id);
                 const opts = users.filter(x => x.ativo).map(x => `<option value="${x.id}">${esc(x.nome)} (@${esc(x.login)}) - ${money(x.saldo)}</option>`).join('');
                 html += `<div class="bg-brand-navy text-white rounded-sm p-3 text-center shadow-md">
-                    <span class="text-[11px] font-semibold text-gray-400 block">Seu saldo para recargas</span>
-                    <span class="text-2xl font-black text-yellow-400">${money(u.saldo)}</span></div>`;
+                    <span class="text-[11px] font-semibold text-gray-400 block">Limite (fiado) liberado aos clientes</span>
+                    <span class="text-2xl font-black text-yellow-400">${money(users.reduce((a, x) => a + (x.credito || 0), 0))}</span>
+                    <button onclick="navigateTo('acertos')" class="block w-full mt-2 text-[11px] font-extrabold uppercase text-yellow-300 underline">Ver acertos de segunda</button></div>`;
                 html += `<button onclick="navigateTo('futebol')" class="${B}"><i class="fa-solid fa-ticket mr-1"></i> Fazer bilhete para um cliente</button>`;
-                html += card('Adicionar Saldo ao Usuário', users.some(x => x.ativo) ? `
+                html += card('Liberar Limite (fiado) ao Usuário', users.some(x => x.ativo) ? `
                     <select id="cb-usuario" class="${I}">${opts}</select>
                     <input id="cb-valor" type="number" inputmode="decimal" min="0" step="0.01" class="${I}" placeholder="Valor (R$)">
-                    <button onclick="camAddBalance()" class="${B}"><i class="fa-solid fa-circle-plus mr-1"></i> Adicionar Saldo</button>` : empty('Cadastre um usuário para adicionar saldo.'));
+                    <button onclick="camAddBalance()" class="${B}"><i class="fa-solid fa-circle-plus mr-1"></i> Liberar Limite</button>` : empty('Cadastre um usuário para liberar limite.'));
                 html += card('Meu WhatsApp', `<p class="text-[11px] text-gray-500">Quando seus usuários confirmarem um bilhete, o WhatsApp abre neste número com o bilhete pronto.</p>
                     <input id="tel-num" type="tel" inputmode="tel" class="${I}" placeholder="DDD + número (ex: 11 91234-5678)" value="${esc(u.telefone || '')}">
                     <button onclick="saveTel()" class="${B}"><i class="fa-brands fa-whatsapp mr-1"></i> Salvar número</button>`);
