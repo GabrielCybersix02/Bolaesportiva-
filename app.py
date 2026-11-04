@@ -420,9 +420,10 @@ def fd_refresh():
 def fd_loop():
     if not FD_KEY: print("football-data: FOOTBALL_DATA_KEY nao definida (usando TheSportsDB/Wikipedia).", flush=True); return
     try:
-        ts, v = kv_get("fd:crests")                            # sobe rapido: usa o que ja estava salvo no banco
+        _fd_dbg["estado"] = "lendo banco"; ts, v = kv_get("fd:crests")                            # sobe rapido: usa o que ja estava salvo no banco
         if v: _fd.update(v)
-    except Exception: ts = 0
+    except Exception as e: ts = 0; _fd_dbg["erro"] = "banco: " + repr(e)[:150]
+    _fd_dbg["estado"] = "iniciando"
     while True:
         wait = 3600
         try:
@@ -431,6 +432,12 @@ def fd_loop():
                 else: wait = 600                               # falhou: tenta de novo em 10 min (antes esperava 24h)
         except Exception as e: print("fd_refresh falhou:", e, flush=True); _fd_dbg.update(estado="excecao", erro=repr(e)[:200]); wait = 600
         time.sleep(wait)
+_fd_thread = None
+def fd_ensure():
+    """Garante que a rotina de escudos esta rodando (sobe de novo se a thread nao existir ou tiver morrido)."""
+    global _fd_thread
+    if FD_KEY and (_fd_thread is None or not _fd_thread.is_alive()):
+        _fd_thread = threading.Thread(target=fd_loop, daemon=True); _fd_thread.start()
 def load_logos():
     try:
         c = raw()
@@ -441,6 +448,7 @@ def load_logos():
 load_logos()
 def logo_map(names, grupo="futebol"):
     """Tudo em memoria (antes: 1 consulta ao banco por time a cada pedido de odds)."""
+    fd_ensure()
     res, pend, t = {}, 0, time.time()
     for n in names:
         f_ = fd_lookup(n) if grupo == "futebol" else None
@@ -541,9 +549,12 @@ def logos():
 @app.get("/api/admin/fd")
 @need("admin")
 def fd_status(u):                                              # diagnostico: abra /api/admin/fd logado como admin
-    return jsonify(ok=True, chave_definida=bool(FD_KEY), tamanho_chave=len(FD_KEY), escudos=len(_fd), exemplo=list(_fd.items())[:3], diagnostico=_fd_dbg,
+    fd_ensure()
+    if request.args.get("run") == "1" and _fd_dbg["estado"] != "carregando":      # /api/admin/fd?run=1 forca a carga agora
+        threading.Thread(target=fd_refresh, daemon=True).start()
+    return jsonify(ok=True, thread_viva=bool(_fd_thread and _fd_thread.is_alive()), chave_definida=bool(FD_KEY), tamanho_chave=len(FD_KEY), escudos=len(_fd), exemplo=list(_fd.items())[:3], diagnostico=_fd_dbg,
                    sportmonks=dict(chave_definida=bool(SM_KEY), **_sm_dbg))
-threading.Thread(target=fd_loop, daemon=True).start()
+fd_ensure()
 threading.Thread(target=logo_worker, daemon=True).start()
 threading.Thread(target=odds_loop, daemon=True).start()
 
