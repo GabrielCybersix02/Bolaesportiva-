@@ -99,6 +99,9 @@ def init_db():
     except Exception: pass
     c.execute("ALTER TABLE logos ADD COLUMN IF NOT EXISTS ts DOUBLE PRECISION DEFAULT 0")
     c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS credito BIGINT NOT NULL DEFAULT 0")   # fiado: total de credito dado ao cliente e ainda nao acertado
+    c.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS feito_por INTEGER")                    # cambista que vendeu o bilhete (o valor sai do saldo DELE)
+    if not c.execute("SELECT 1 FROM kv WHERE k='mig:caixa1'").fetchone():                         # 1x: "Limite (fiado)" antigo nunca saiu do saldo do cambista; some das saidas dele
+        c.execute("UPDATE transactions SET de=NULL WHERE descr LIKE 'Limite (fiado)%'"); c.execute("INSERT INTO kv(k,ts,v) VALUES('mig:caixa1',0,'1')")
     if not c.execute("SELECT 1 FROM kv WHERE k='mig:credito1'").fetchone():                       # 1x: o saldo que os clientes ja tem vira credito (fiado) deles
         c.execute("UPDATE users SET credito=saldo WHERE role='usuario'"); c.execute("INSERT INTO kv(k,ts,v) VALUES('mig:credito1',0,'1')")
     c.execute("INSERT INTO users(nome,login,pw,role,senha_padrao,criado_em) SELECT 'Administrador','admin',?,'admin',1,? "
@@ -178,7 +181,7 @@ def state(u):
                 valor=r["valor"] / 100, desc=r["descr"]) for r in c.execute(tq + " ORDER BY id DESC LIMIT 500", ta)]
     tsql, targs = q("SELECT * FROM tickets", "user_id")
     tks = [dict(id=str(r["id"]), userId=str(r["user_id"]), data=r["data"], selecoes=json.loads(r["selecoes"]), odd=r["odd"],
-                valor=r["valor"] / 100, retorno=r["retorno"] / 100, status=r["status"])
+                valor=r["valor"] / 100, retorno=r["retorno"] / 100, status=r["status"], feitoPor=str(r["feito_por"]) if r["feito_por"] else None)
            for r in c.execute(tsql + " ORDER BY id DESC LIMIT 300", targs)]
     cam = None
     if u["role"] == "usuario" and u["criado_por"]:
@@ -208,20 +211,19 @@ def new_usuario(u):
     m = make_user(db(), "usuario", str(d.get("nome", "")), str(d.get("login", "")), str(d.get("senha", "")), u["id"])
     return err(m) if m else jsonify(ok=True)
 @app.post("/api/saldo")
-@need("admin", "cambista")
+@need("admin")
 def add_saldo(u):
     d = request.get_json(silent=True) or {}; c = db(); v = cents(d.get("valor"))
     if v <= 0: return err("Informe um valor válido.")
     c.execute("BEGIN")
     try:
         t = c.execute("SELECT * FROM users WHERE id=? AND ativo=1 FOR UPDATE", (d.get("alvo"),)).fetchone()
-        alvo_role = "cambista" if u["role"] == "admin" else "usuario"
-        if not t or t["role"] != alvo_role or (u["role"] == "cambista" and t["criado_por"] != u["id"]):
+        if not t or t["role"] not in ("cambista", "usuario"):          # so o ADM coloca saldo (para cambista ou usuario)
             c.execute("ROLLBACK"); return err("Selecione uma conta válida.")
         # FIADO: o cambista libera limite ao cliente sem pagar nada na hora; o valor vira "credito" e entra na conta do acerto de segunda
         if t["role"] == "usuario": c.execute("UPDATE users SET saldo=saldo+?, credito=credito+? WHERE id=?", (v, v, t["id"]))
         else: c.execute("UPDATE users SET saldo=saldo+? WHERE id=?", (v, t["id"]))
-        tx(c, "credito", u["id"], t["id"], v, ("Saldo adicionado a " if u["role"] == "admin" else "Limite (fiado) para ") + t["nome"])
+        tx(c, "credito", u["id"], t["id"], v, ("Saldo adicionado a " if t["role"] == "cambista" else "Saldo (fiado) para ") + t["nome"])
         c.execute("COMMIT")
     except Exception:
         c.execute("ROLLBACK"); raise
@@ -761,26 +763,46 @@ def bet(u):
         seen.add(ev["id"])
         if datetime.fromisoformat(ev["commence"].replace("Z", "+00:00")).timestamp() <= time.time():
             return err(f"Apostas encerradas: {ev['home']} x {ev['away']}.")
-        mk = str(s.get("market")); o = ev["odds"].get(mk)
+        mk = str(s.get("market"))
+        if mk.startswith("x:"):                       # mercado extra: o preco vem do servidor (OddsPapi), nunca do navegador
+            try: xr = extra_price(ev, mk)
+            except Exception as e: return err("Mercado extra indisponível agora: " + str(e)[:120])
+            if not xr: return err("Esse mercado mudou ou saiu do ar. Reabra o jogo e escolha de novo.")
+            odd *= xr["odd"]; final.append(dict(id=ev["id"], key=ev["key"], commence=ev["commence"], home=ev["home"], away=ev["away"], jogo=f"{ev['home']} x {ev['away']}",
+                          mercado=mk, mercadoNome=xr["titulo"], palpite=xr["label"], fam=xr["fam"], hc=xr["hc"], fid=xr["fid"], odd=xr["odd"])); continue
+        o = ev["odds"].get(mk)
         if not o: return err("Mercado indisponível.")
         odd *= o; final.append(dict(id=ev["id"], key=ev["key"], commence=ev["commence"], home=ev["home"], away=ev["away"], jogo=f"{ev['home']} x {ev['away']}",
                           mercado=mk, palpite=ev["home"] if mk == "1" else ev["away"] if mk == "2" else "Empate", odd=o))   # odd vem do servidor
     odd = round(odd, 2); c = db(); c.execute("BEGIN")
     try:
-        if stake > c.execute("SELECT saldo FROM users WHERE id=? FOR UPDATE", (u["id"],)).fetchone()[0]:
-            c.execute("ROLLBACK"); return err("Saldo insuficiente do cliente. Faça uma recarga para ele no painel." if feito_por else "Saldo insuficiente. Peça uma recarga ao seu cambista.")
-        c.execute("UPDATE users SET saldo=saldo-? WHERE id=?", (stake, u["id"]))
-        tid = c.execute("INSERT INTO tickets(user_id,data,selecoes,odd,valor,retorno) VALUES(?,?,?,?,?,?) RETURNING id",
-                        (u["id"], now(), json.dumps(final), odd, stake, int(round(stake * odd)))).fetchone()[0]
-        tx(c, "aposta", u["id"], None, stake, f"Bilhete #{tid} ({len(final)} seleç{'ões' if len(final) > 1 else 'ão'}) odd {odd:.2f}{por}")
+        if feito_por:        # cambista vendendo: o valor sai do saldo DO CAMBISTA; para o cliente vira fiado (credito), entra no acerto de segunda
+            if stake > c.execute("SELECT saldo FROM users WHERE id=? FOR UPDATE", (feito_por["id"],)).fetchone()[0]:
+                c.execute("ROLLBACK"); return err("Seu saldo é insuficiente para este bilhete. Peça recarga ao ADM.")
+            c.execute("UPDATE users SET saldo=saldo-? WHERE id=?", (stake, feito_por["id"]))
+            c.execute("UPDATE users SET credito=credito+? WHERE id=?", (stake, u["id"]))
+        else:
+            if stake > c.execute("SELECT saldo FROM users WHERE id=? FOR UPDATE", (u["id"],)).fetchone()[0]:
+                c.execute("ROLLBACK"); return err("Saldo insuficiente. Peça uma recarga ao ADM.")
+            c.execute("UPDATE users SET saldo=saldo-? WHERE id=?", (stake, u["id"]))
+        tid = c.execute("INSERT INTO tickets(user_id,data,selecoes,odd,valor,retorno,feito_por) VALUES(?,?,?,?,?,?,?) RETURNING id",
+                        (u["id"], now(), json.dumps(final), odd, stake, int(round(stake * odd)), feito_por["id"] if feito_por else None)).fetchone()[0]
+        tx(c, "aposta", feito_por["id"] if feito_por else u["id"], None, stake,
+           f"Bilhete #{tid} de {u['nome']} ({len(final)} seleç{'ões' if len(final) > 1 else 'ão'}) odd {odd:.2f}" if feito_por else f"Bilhete #{tid} ({len(final)} seleç{'ões' if len(final) > 1 else 'ão'}) odd {odd:.2f}")
         c.execute("COMMIT")
     except Exception:
         c.execute("ROLLBACK"); raise
     cr = c.execute("SELECT nome, telefone FROM users WHERE id=?", (u["criado_por"],)).fetchone() if u["criado_por"] else None
     return jsonify(ok=True, id=tid, odd=odd, valor=stake / 100, retorno=round(stake * odd) / 100, selecoes=final, usuario=u["nome"],
                    cambista=dict(nome=cr["nome"], telefone=cr["telefone"] or "") if cr else None)
+def _estorno(c, t, tid, suf):
+    if t["feito_por"]:       # bilhete vendido por cambista: devolve ao saldo dele e tira o fiado do cliente
+        c.execute("UPDATE users SET saldo=saldo+? WHERE id=?", (t["valor"], t["feito_por"])); c.execute("UPDATE users SET credito=credito-? WHERE id=?", (t["valor"], t["user_id"]))
+        tx(c, "estorno", None, t["feito_por"], t["valor"], f"Estorno bilhete #{tid}{suf}")
+    else:
+        c.execute("UPDATE users SET saldo=saldo+? WHERE id=?", (t["valor"], t["user_id"])); tx(c, "estorno", None, t["user_id"], t["valor"], f"Estorno bilhete #{tid}{suf}")
 @app.post("/api/tickets/<int:tid>/settle")
-@need("admin", "cambista")
+@need("admin")      # cambista nao decide resultado: a liquidacao e automatica (ADM so como excecao)
 def settle(u, tid):
     res = (request.get_json(silent=True) or {}).get("resultado"); c = db()
     if res not in ("ganhou", "perdeu", "cancelado"): return err("Resultado inválido.")
@@ -793,7 +815,7 @@ def settle(u, tid):
         if res == "ganhou":
             c.execute("UPDATE users SET saldo=saldo+? WHERE id=?", (t["retorno"], t["user_id"])); tx(c, "premio", None, t["user_id"], t["retorno"], f"Prêmio bilhete #{tid}")
         elif res == "cancelado":
-            c.execute("UPDATE users SET saldo=saldo+? WHERE id=?", (t["valor"], t["user_id"])); tx(c, "estorno", None, t["user_id"], t["valor"], f"Estorno bilhete #{tid}")
+            _estorno(c, t, tid, "")
         c.execute("COMMIT")
     except Exception:
         c.execute("ROLLBACK"); raise
@@ -803,10 +825,10 @@ def settle(u, tid):
 LIVE_TTL = int(os.environ.get("LIVE_POLL_SECONDS", "30"))
 _live = {}
 def _ts(iso): return datetime.fromisoformat(iso.replace("Z", "+00:00")).timestamp()
-def live_for_key(key):
+def live_for_key(key, ttl=None):
     ts, data = _live.get(key, (0, {}))
     if key.startswith("op_"): return {}                  # liga da OddsPapi: sem placar na The Odds API
-    if time.time() - ts < LIVE_TTL: return data
+    if time.time() - ts < (LIVE_TTL if ttl is None else ttl): return data
     def num(v):
         try: return int(float(v))
         except Exception: return None
@@ -819,6 +841,17 @@ def live_for_key(key):
         _live[key] = (time.time(), out); return out
     except Exception:
         _live[key] = (time.time(), data); return data      # mantem o ultimo placar e nao insiste a cada segundo
+LIST_TTL = int(os.environ.get("LIVE_LIST_SECONDS", "90"))     # placar na lista de jogos: cada liga com jogo rolando gasta 1-2 creditos da The Odds API a cada atualizacao
+@app.get("/api/placares")
+@need()
+def placares(u):
+    t = time.time(); evs = {}
+    for g_ in GROUPS:
+        for e in cached(g_)[1] or []:
+            if e.get("key") and not e["key"].startswith("op_") and 0 <= t - _ts(e["commence"]) < 3 * 3600: evs.setdefault(e["key"], set()).add(e["id"])
+    out = {}
+    for k, ids in evs.items(): out.update({i: v for i, v in live_for_key(k, LIST_TTL).items() if i in ids and v.get("started")})
+    return jsonify(ok=True, placares=out)
 @app.get("/api/live")
 @need()
 def live(u):
@@ -831,20 +864,139 @@ def live(u):
     for k in keys: out.update({i: v for i, v in live_for_key(k).items() if i in want})
     return jsonify(ok=True, live=out)
 
+# ---------------------------------------------------------------- mercados extras (gols, ambas marcam, dupla chance, escanteios, cartoes, faltas)
+# Vem da OddsPapi: 1 chamada /odds ao abrir o jogo (guardada 10 min) + catalogo de mercados 1x por semana. Corners/cartoes dependem da casa e do jogo ter esses mercados.
+XB = [b.strip() for b in os.environ.get("ODDSPAPI_EXTRA_BOOKS", "pinnacle,bet365").split(",") if b.strip()][:4]
+XTTL = 600
+_cat, _xm = {"ts": 0, "d": None}, {}
+FAM_ORD = ["gols", "btts", "dc", "escanteios", "cartoes", "faltas"]
+FAM_TIT = {"gols": "Total de Gols", "btts": "Ambas Marcam", "dc": "Dupla Chance", "escanteios": "Escanteios", "cartoes": "Cartões", "faltas": "Faltas"}
+FAM_SLIP = {"gols": "Total de Gols", "btts": "Ambas as Equipes Marcam", "dc": "Dupla Chance", "escanteios": "Total de Escanteios", "cartoes": "Total de Cartões", "faltas": "Total de Faltas"}
+FAM_NOUN = {"gols": "gols", "escanteios": "escanteios", "cartoes": "cartões", "faltas": "faltas"}
+def _famil(name, per):
+    n = (name or "").lower().strip()
+    if per != "fulltime": return None
+    if n == "both teams to score": return "btts"
+    if "double chance" in n and not any(w in n for w in ("half", "1st", "2nd", "&", " and ")): return "dc"
+    if any(w in n for w in ("1st", "2nd", "half", "team", "player", "home", "away", "asian", "handicap", "exact", "odd even", "range", "first", "last", "race", "&", " and ", "combo")): return None
+    if n == "over under full time": return "gols"
+    if "over under" not in n: return None
+    if n.startswith("corners"): return "escanteios"
+    if "booking" in n or "card" in n: return "cartoes"
+    if "foul" in n: return "faltas"
+    return None
+def op_catalog():
+    if _cat["d"] is not None and time.time() - _cat["ts"] < 7 * 86400: return _cat["d"]
+    ts, v = kv_get("op:cat:soccer1")
+    if v and time.time() - ts < 7 * 86400: _cat.update(ts=ts, d=v); return v
+    lst = op_get("/markets", reserve=OP_RESERVE, sportId=10); d = {}
+    for m in lst if isinstance(lst, list) else []:
+        if m.get("playerProp"): continue
+        hc = m.get("handicap"); f = _famil(m.get("marketName"), m.get("period"))
+        if not f: continue
+        if f in FAM_NOUN and not (isinstance(hc, (int, float)) and abs(hc % 1 - 0.5) < 1e-9): continue     # so linhas .5 (sem devolucao)
+        d[str(m["marketId"])] = [f, hc, m.get("marketName"), {str(o["outcomeId"]): o.get("outcomeName") for o in m.get("outcomes", [])}]
+    if not d: raise RuntimeError("Catálogo de mercados da OddsPapi veio vazio.")
+    kv_set("op:cat:soccer1", d); _cat.update(ts=time.time(), d=d); return d
+def fixture_for(ev):
+    eid = str(ev["id"])
+    if eid.startswith("op:"): return eid[3:]
+    if _op["ev"] is None: op_kick()
+    t = _ts(ev["commence"]); h, a = norm(ev["home"]), norm(ev["away"])
+    for e in _op["ev"] or []:
+        if abs(_ts(e["commence"]) - t) <= 14400 and _same(h, norm(e["home"])) and _same(a, norm(e["away"])): return str(e["id"])[3:]
+def _lab(f, on, hc, ev):
+    on = str(on or "")
+    if f == "btts": return {"yes": "Sim", "no": "Não"}.get(on.lower(), on)
+    if f == "dc": return {"1X": ev["home"] + " ou Empate", "12": ev["home"] + " ou " + ev["away"], "X2": "Empate ou " + ev["away"]}.get(on.upper(), on)
+    return {"over": "Mais de ", "under": "Menos de "}.get(on.lower(), on + " ") + str(hc).replace(".", ",")
+def _build_groups(ev, cat, boards):
+    got = {}
+    for b in XB:                                                    # cada mercado inteiro vem de UMA casa (nao mistura precos)
+        for mid, m in ((boards.get(b) or {}).get("markets") or {}).items():
+            ci = cat.get(str(mid))
+            if not ci or str(mid) in got or m.get("marketActive") is False: continue
+            pr = {}
+            for oid in ci[3]:
+                p = (((m.get("outcomes") or {}).get(oid) or {}).get("players") or {}).get("0") or {}
+                v = p.get("price")
+                if p.get("active", True) and isinstance(v, (int, float)) and v > 1: pr[oid] = v
+            if len(pr) == len(ci[3]): got[str(mid)] = pr
+    gr, flat = {f: [] for f in FAM_ORD}, {}
+    for mid, pr in got.items():
+        f, hc, name, outs = cat[mid]; opts = []
+        for oid in sorted(outs, key=int):
+            k = f"x:{mid}:{oid}"; lab = _lab(f, outs[oid], hc, ev); sl = lab + (" " + FAM_NOUN[f] if f in FAM_NOUN else "")
+            opts.append(dict(k=k, l=lab, o=pr[oid], s=sl))
+            flat[k] = dict(odd=pr[oid], label=sl, titulo=FAM_SLIP[f], fam=f, hc=hc)
+        gr[f].append((hc or 0, dict(t=("Mais/Menos " + str(hc).replace(".", ",")) if f in FAM_NOUN else FAM_TIT[f], o=opts)))
+    groups = [dict(id=f, t=FAM_TIT[f], m=[m for _, m in sorted(gr[f], key=lambda x: x[0])]) for f in FAM_ORD if gr[f]]
+    return groups, flat
+def op_markets(ev):
+    fid = fixture_for(ev)
+    if not fid: raise RuntimeError("Este jogo ainda não está ligado à OddsPapi (sem mercados extras).")
+    c = _xm.get(fid)
+    if c and time.time() - c[0] < XTTL: return c[1], c[2], fid
+    cat = op_catalog()
+    d = op_get("/odds", reserve=OP_RESERVE, fixtureId=fid, bookmakers=",".join(XB))
+    groups, flat = _build_groups(ev, cat, (d or {}).get("bookmakerOdds") or {})
+    if len(_xm) > 80: _xm.pop(min(_xm, key=lambda k: _xm[k][0]), None)
+    _xm[fid] = (time.time(), groups, flat); return groups, flat, fid
+def extra_price(ev, key):
+    groups, flat, fid = op_markets(ev); x = flat.get(key)
+    return dict(x, fid=fid) if x else None
+@app.get("/api/jogo")
+@need()
+def jogo(u):
+    ev = find_event(str(request.args.get("id", "")))
+    if not ev: return err("Jogo não encontrado. Atualize a lista.", 404)
+    if ev.get("grupo", "futebol") != "futebol": return jsonify(ok=True, grupos=[], motivo="Mercados extras só estão disponíveis para futebol.")
+    if _ts(ev["commence"]) <= time.time(): return jsonify(ok=True, grupos=[], motivo="Jogo em andamento: apostas encerradas.")
+    try: groups, flat, fid = op_markets(ev)
+    except Exception as e: return jsonify(ok=True, grupos=[], motivo=str(e)[:220])
+    return jsonify(ok=True, grupos=groups, motivo="" if groups else "Esta casa ainda não abriu mercados extras para este jogo (escanteios e cartões costumam abrir uns 3 dias antes).")
+
 # ---------------------------------------------------------------- liquidacao automatica dos bilhetes
 AUTO_SETTLE = os.environ.get("AUTO_SETTLE", "1") == "1"            # AUTO_SETTLE=0 desliga (volta a ser so manual)
 _op_res, _op_try = {}, {}
 OUT_ID = {"1": "101", "X": "102", "2": "103"}
+_op_raw = {}
+def op_settle_raw(fid):
+    """Todos os mercados liquidados do jogo (1 chamada /settlements, guardada 25 min e com pausa de 20 min entre tentativas)."""
+    c = _op_raw.get(fid)
+    if c and time.time() - c[0] < 1500: return c[1]
+    if time.time() - _op_try.get(fid, 0) < 1200: return None
+    _op_try[fid] = time.time()
+    try: d = op_get("/settlements", fixtureId=fid)
+    except Exception as e: print("settlements falhou:", e, flush=True); return None
+    mk = d.get("markets") if isinstance(d, dict) else None
+    if mk:
+        if len(_op_raw) > 60: _op_raw.pop(min(_op_raw, key=lambda k: _op_raw[k][0]), None)
+        _op_raw[fid] = (time.time(), mk)
+    return mk or None
+def op_outcome_result(fid, mid, oid):
+    k = f"op:xres:{fid}:{mid}:{oid}"
+    if k in _op_res: return _op_res[k]
+    v = kv_get(k)[1]
+    if v: _op_res[k] = v; return v
+    raw = op_settle_raw(fid)
+    if not raw: return None
+    r = ((((raw.get(mid) or {}).get("outcomes") or {}).get(oid) or {}).get("players") or {}).get("0") or {}
+    r = r.get("result")
+    if r in ("WIN", "LOSE"):
+        _op_res[k] = r
+        try: kv_set(k, r)
+        except Exception: pass
+        return r
+    return None
 def op_result(fid):
     """Resultado do jogo da OddsPapi (1 chamada /settlements por jogo; guardado no banco, nao repete)."""
     if fid in _op_res: return _op_res[fid]
     v = kv_get("op:res:" + fid)[1]
     if v: _op_res[fid] = v; return v
-    if time.time() - _op_try.get(fid, 0) < 1200: return None
-    _op_try[fid] = time.time()
-    try: d = op_get("/settlements", fixtureId=fid)
-    except Exception as e: print("settlements falhou:", e, flush=True); return None
-    m = (((d or {}).get("markets") or {}).get("101") or {}).get("outcomes") or {} if isinstance(d, dict) else {}
+    mkts = op_settle_raw(fid)
+    if not mkts: return None
+    m = (mkts.get("101") or {}).get("outcomes") or {}
     res = {k: ((((m.get(o) or {}).get("players") or {}).get("0")) or {}).get("result") for k, o in OUT_ID.items()}
     if "WIN" in res.values() and all(r in ("WIN", "LOSE") for r in res.values() if r):
         _op_res[fid] = res
@@ -856,6 +1008,10 @@ def sel_verdict(s_):
     """'won' | 'lost' | None (ainda sem resultado confiavel). So decide com jogo encerrado de verdade."""
     if not s_.get("commence") or time.time() - _ts(s_["commence"]) < 100 * 60: return None
     mk, sid, key = s_.get("mercado"), str(s_.get("id", "")), str(s_.get("key", ""))
+    if str(mk).startswith("x:"):                          # mercado extra: resultado vem da OddsPapi (WIN/LOSE); sem resultado claro fica aberto para o ADM
+        try: _, mid, oid = str(mk).split(":")
+        except ValueError: return None
+        return {"WIN": "won", "LOSE": "lost"}.get(op_outcome_result(str(s_.get("fid") or ""), mid, oid)) if s_.get("fid") else None
     if sid.startswith("op:"):
         r = (op_result(sid[3:]) or {}).get(mk)
         return {"WIN": "won", "LOSE": "lost"}.get(r)
@@ -873,7 +1029,7 @@ def settle_tx(c, tid, res, auto=False):
         if res == "ganhou":
             c.execute("UPDATE users SET saldo=saldo+? WHERE id=?", (t["retorno"], t["user_id"])); tx(c, "premio", None, t["user_id"], t["retorno"], f"Prêmio bilhete #{tid}{suf}")
         elif res == "cancelado":
-            c.execute("UPDATE users SET saldo=saldo+? WHERE id=?", (t["valor"], t["user_id"])); tx(c, "estorno", None, t["user_id"], t["valor"], f"Estorno bilhete #{tid}{suf}")
+            _estorno(c, t, tid, suf)
         c.execute("COMMIT"); return True
     except Exception:
         c.execute("ROLLBACK"); raise
