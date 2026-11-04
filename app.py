@@ -1,5 +1,5 @@
 """Bola Esportiva - backend Flask + Supabase (Postgres).  Rodar: python app.py   (producao: gunicorn app:app)"""
-import os, re, json, time, queue, threading, secrets
+import os, re, json, time, queue, threading, secrets, unicodedata
 from concurrent.futures import ThreadPoolExecutor
 import psycopg2, psycopg2.extras
 from datetime import datetime, timezone
@@ -371,6 +371,56 @@ LOGO_RETRY = 6 * 3600                              # quem nao foi achado tenta d
 SPORTSDB_KEY = os.environ.get("SPORTSDB_KEY", "3")             # "3" = chave gratis (30 req/min). Chave paga libera 100 req/min.
 SPORTSDB_DELAY = float(os.environ.get("SPORTSDB_DELAY", "2.2"))
 UA = {"User-Agent": "BolaEsportiva/1.0 (logos de times)"}
+
+# ---- football-data.org (escudos oficiais). A chave vem SEMPRE da variavel FOOTBALL_DATA_KEY (nunca no codigo).
+FD_KEY = os.environ.get("FOOTBALL_DATA_KEY", "")
+FD_BASE = "https://api.football-data.org/v4"
+FD_COMPS = ["PL", "PD", "SA", "BL1", "FL1", "PPL", "DED", "ELC", "BSA", "CL", "EC", "WC"]   # campeonatos do plano gratis
+FD_REFRESH = 24 * 3600                                         # recarrega a tabela de escudos 1x por dia (12 chamadas)
+_fd = {}                                                       # nome normalizado -> url do escudo
+_STOP = {"fc", "cf", "afc", "sc", "ac", "as", "cd", "rc", "rcd", "sk", "fk", "ssc", "ud", "sd", "ca", "us", "ss", "club", "de", "calcio", "the"}
+def norm(s):
+    """'Club Atlético de Madrid' e 'Atlético Madrid' viram a mesma chave."""
+    s = unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode().lower().replace("&", " and ")
+    return "".join(t for t in re.findall(r"[a-z0-9]+", s) if t not in _STOP)
+def fd_lookup(n):
+    return _fd.get(norm(n)) or None
+def _hnum(r, h, default):
+    try: return int(float(r.headers.get(h, default)))
+    except Exception: return default
+def fd_refresh():
+    """Baixa os times de cada campeonato respeitando o limite (10 req/min no plano gratis) lendo os headers de resposta."""
+    out = {}
+    for code in FD_COMPS:
+        for _ in range(3):
+            try: r = requests.get(f"{FD_BASE}/competitions/{code}/teams", headers={**UA, "X-Auth-Token": FD_KEY}, timeout=20)
+            except Exception: time.sleep(10); continue
+            if r.status_code == 429: time.sleep(min(70, _hnum(r, "X-RequestCounter-Reset", 60) + 1)); continue
+            if r.status_code == 401: print("football-data: chave invalida (FOOTBALL_DATA_KEY).", flush=True); return
+            if r.ok:
+                for t in r.json().get("teams") or []:
+                    if t.get("crest"):
+                        for nm in (t.get("name"), t.get("shortName")):
+                            if nm and norm(nm): out.setdefault(norm(nm), t["crest"])
+                if _hnum(r, "X-Requests-Available-Minute", 10) <= 1: time.sleep(_hnum(r, "X-RequestCounter-Reset", 60) + 1)
+            break                                              # 403 = campeonato fora do plano: pula
+        time.sleep(6.5)                                        # folga extra: 12 campeonatos em ~80s, sem estourar o limite
+    if out:
+        _fd.update(out)
+        try: kv_set("fd:crests", out)
+        except Exception as e: print("kv_set fd falhou:", e, flush=True)
+        print(f"football-data: {len(out)} escudos carregados.", flush=True)
+def fd_loop():
+    if not FD_KEY: print("football-data: FOOTBALL_DATA_KEY nao definida (usando TheSportsDB/Wikipedia).", flush=True); return
+    try:
+        ts, v = kv_get("fd:crests")                            # sobe rapido: usa o que ja estava salvo no banco
+        if v: _fd.update(v)
+    except Exception: ts = 0
+    while True:
+        try:
+            if time.time() - (ts or 0) >= FD_REFRESH: fd_refresh(); ts = time.time()
+        except Exception as e: print("fd_refresh falhou:", e, flush=True)
+        time.sleep(3600)
 def load_logos():
     try:
         c = raw()
@@ -429,7 +479,9 @@ def logo_worker():
             with _plock:
                 if _pending: item = _pending.popitem(); _inflight.add(item[0])
             if not item: time.sleep(2); continue
-            n, grupo = item; url = find_logo(n, grupo)
+            n, grupo = item; url = fd_lookup(n) if grupo in ("futebol", "aovivo") else None
+            fast = bool(url)                                   # achou no football-data: sem espera
+            if not url: url = find_logo(n, grupo)
             if url is None:
                 _tries[n] = _tries.get(n, 0) + 1
                 if _tries[n] < 6:
@@ -441,7 +493,7 @@ def logo_worker():
             try: c.execute("INSERT INTO logos(nome,url,ts) VALUES(?,?,?) ON CONFLICT (nome) DO UPDATE SET url=EXCLUDED.url, ts=EXCLUDED.ts", (n, url, time.time()))
             finally: c.close()
             with _plock: _inflight.discard(n)
-            time.sleep(SPORTSDB_DELAY)
+            if not fast: time.sleep(SPORTSDB_DELAY)
         except Exception:
             if item:
                 with _plock: _inflight.discard(item[0])
@@ -452,6 +504,7 @@ def logos():
     d = request.get_json(silent=True) or {}
     res, pend = logo_map({str(n) for n in (d.get("names") or [])[:300]}, str(d.get("grupo", "futebol")))
     return jsonify(ok=True, logos=res, pendentes=pend)
+threading.Thread(target=fd_loop, daemon=True).start()
 threading.Thread(target=logo_worker, daemon=True).start()
 threading.Thread(target=odds_loop, daemon=True).start()
 
