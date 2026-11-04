@@ -549,6 +549,15 @@ def logos():
     d = request.get_json(silent=True) or {}
     res, pend = logo_map({str(n) for n in (d.get("names") or [])[:300]}, str(d.get("grupo", "futebol")))
     return jsonify(ok=True, logos=res, pendentes=pend)
+@app.get("/api/admin/ligas")
+@need("admin")
+def ligas(u):                                                  # lista as ligas de futebol que o The Odds API oferece (nao gasta creditos)
+    r = requests.get(f"{ODDS_BASE}/sports/", params={"apiKey": ODDS_KEY, "all": "true"}, timeout=20)
+    if not r.ok: return err(f"The Odds API respondeu {r.status_code}.", 502)
+    q = request.args.get("q", "").lower().strip()
+    l = [dict(key=s["key"], nome=s["title"], ativo=s["active"]) for s in r.json() if s["group"] == "Soccer" and not s.get("has_outrights")]
+    if q: l = [x for x in l if q in x["key"].lower() or q in x["nome"].lower()]
+    return jsonify(ok=True, total=len(l), ativas=sum(x["ativo"] for x in l), ligas=l)
 @app.get("/api/admin/fd")
 @need("admin")
 def fd_status(u):                                              # diagnostico: abra /api/admin/fd logado como admin
