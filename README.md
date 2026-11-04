@@ -22,6 +22,7 @@ static/
 | `ODDS_CACHE_MINUTES` | não | padrão 15 |
 | `ODDS_FORCE_MIN_SECONDS` | não | padrão 60 (botão Atualizar não gasta crédito antes disso) |
 | `ODDS_IDLE_HOURS` | não | padrão 1 (só renova as odds sozinho se alguém usou nesse período) |
+| `FOOTBALL_DATA_KEY` | recomendado | Token do football-data.org (escudos oficiais; nunca no código). Sem ele, usa TheSportsDB/Wikipedia |
 | `SPORTSDB_KEY` | não | chave do TheSportsDB (padrão `3`, grátis, 30 req/min) |
 | `DB_POOL` | não | conexões simultâneas com o banco (padrão 6) |
 
