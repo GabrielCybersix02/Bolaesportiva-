@@ -35,6 +35,7 @@ SCHEMA = [
 """CREATE TABLE IF NOT EXISTS tickets(id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), data TEXT,
   selecoes TEXT, odd DOUBLE PRECISION, valor BIGINT, retorno BIGINT, status TEXT DEFAULT 'aberto')""",
 "CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY, ts DOUBLE PRECISION, v TEXT)",
+"""CREATE TABLE IF NOT EXISTS acertos(id SERIAL PRIMARY KEY, data TEXT, user_id INTEGER NOT NULL REFERENCES users(id), cambista_id INTEGER, valor BIGINT NOT NULL, por INTEGER)""",
 "CREATE TABLE IF NOT EXISTS logos(nome TEXT PRIMARY KEY, url TEXT)"]
 class Conn:
     """Embrulho fino do psycopg2: usa '?' nos SQLs e devolve o cursor. As conexoes ficam num pool e sao reaproveitadas."""
@@ -97,6 +98,9 @@ def init_db():
     try: c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS telefone TEXT")
     except Exception: pass
     c.execute("ALTER TABLE logos ADD COLUMN IF NOT EXISTS ts DOUBLE PRECISION DEFAULT 0")
+    c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS credito BIGINT NOT NULL DEFAULT 0")   # fiado: total de credito dado ao cliente e ainda nao acertado
+    if not c.execute("SELECT 1 FROM kv WHERE k='mig:credito1'").fetchone():                       # 1x: o saldo que os clientes ja tem vira credito (fiado) deles
+        c.execute("UPDATE users SET credito=saldo WHERE role='usuario'"); c.execute("INSERT INTO kv(k,ts,v) VALUES('mig:credito1',0,'1')")
     c.execute("INSERT INTO users(nome,login,pw,role,senha_padrao,criado_em) SELECT 'Administrador','admin',?,'admin',1,? "
               "WHERE NOT EXISTS (SELECT 1 FROM users WHERE role='admin') ON CONFLICT (login) DO NOTHING",
               (generate_password_hash("admin123"), now()))
@@ -164,7 +168,7 @@ def scope_ids(c, u):
 def state(u):
     c = db(); ids = scope_ids(c, u)
     q = lambda base, col: (base, ()) if ids is None else (base + f" WHERE {col} IN ({','.join('?'*len(ids))})", tuple(ids))
-    us = [dict(id=str(r["id"]), nome=r["nome"], login=r["login"], role=r["role"], saldo=r["saldo"] / 100, ativo=bool(r["ativo"]),
+    us = [dict(id=str(r["id"]), nome=r["nome"], login=r["login"], role=r["role"], saldo=r["saldo"] / 100, credito=(r["credito"] or 0) / 100, ativo=bool(r["ativo"]),
               criadoPor=str(r["criado_por"]) if r["criado_por"] else None, senhaPadrao=bool(r["senha_padrao"]), telefone=r["telefone"] or "")
           for r in c.execute(*q("SELECT * FROM users", "id"))]
     if ids is not None:
@@ -214,12 +218,10 @@ def add_saldo(u):
         alvo_role = "cambista" if u["role"] == "admin" else "usuario"
         if not t or t["role"] != alvo_role or (u["role"] == "cambista" and t["criado_por"] != u["id"]):
             c.execute("ROLLBACK"); return err("Selecione uma conta válida.")
-        if u["role"] == "cambista":   # ADM tem saldo ilimitado; cambista usa o proprio saldo
-            cur = c.execute("SELECT saldo FROM users WHERE id=? FOR UPDATE", (u["id"],)).fetchone()[0]
-            if v > cur: c.execute("ROLLBACK"); return err("Seu saldo é insuficiente. Peça recarga ao ADM.")
-            c.execute("UPDATE users SET saldo=saldo-? WHERE id=?", (v, u["id"]))
-        c.execute("UPDATE users SET saldo=saldo+? WHERE id=?", (v, t["id"]))
-        tx(c, "credito", u["id"], t["id"], v, ("Saldo adicionado a " if u["role"] == "admin" else "Recarga para ") + t["nome"])
+        # FIADO: o cambista libera limite ao cliente sem pagar nada na hora; o valor vira "credito" e entra na conta do acerto de segunda
+        if t["role"] == "usuario": c.execute("UPDATE users SET saldo=saldo+?, credito=credito+? WHERE id=?", (v, v, t["id"]))
+        else: c.execute("UPDATE users SET saldo=saldo+? WHERE id=?", (v, t["id"]))
+        tx(c, "credito", u["id"], t["id"], v, ("Saldo adicionado a " if u["role"] == "admin" else "Limite (fiado) para ") + t["nome"])
         c.execute("COMMIT")
     except Exception:
         c.execute("ROLLBACK"); raise
@@ -910,6 +912,25 @@ def op_diag(u):
         except Exception as e: out["conta"] = "falhou: " + str(e).replace(OP_KEY, "***")[:120]
     return jsonify(ok=True, **out)
 
+# ---------------------------------------------------------------- 5DollarFootballAPI (diagnostico)
+# A chave vem SEMPRE da variavel FIVEDOLLAR_KEY no Render (nunca no codigo).
+FD5_KEY = os.environ.get("FIVEDOLLAR_KEY", "").strip().strip("\"'").strip()
+FD5_BASE = "https://api.5dollarfootballapi.com/v1"
+@app.get("/api/admin/5dollar")
+@need("admin")
+def fd5_diag(u):
+    """Teste: /api/admin/5dollar?path=/fixtures  •  ?path=/fixtures&status=scheduled  •  ?path=/fixtures/ID/odds  •  ?path=/bookmakers
+    Mostra a resposta CRUA (cortada) para eu ver o formato real. Qualquer outro parametro da URL vai junto para a API."""
+    if not FD5_KEY: return err("Defina FIVEDOLLAR_KEY no Render.")
+    path = request.args.get("path", "/fixtures")
+    if not path.startswith("/") or "://" in path or ".." in path: return err("path inválido.")
+    params = {k: v for k, v in request.args.items() if k != "path"}
+    try:
+        r = requests.get(FD5_BASE + path, params=params, headers={**UA, "Authorization": "Bearer " + FD5_KEY}, timeout=25)
+        txt = r.text.replace(FD5_KEY, "***")
+        return jsonify(ok=r.ok, status=r.status_code, limite_minuto=r.headers.get("X-RateLimit-Limit"), restante=r.headers.get("X-RateLimit-Remaining"), tamanho=len(txt), resposta=txt[:5000])
+    except Exception as e: return jsonify(ok=False, erro=str(e).replace(FD5_KEY, "***")[:200]), 502
+
 # ---------------------------------------------------------------- extras
 @app.post("/api/admin/seed")
 @need("admin")
@@ -924,7 +945,7 @@ def seed(u):
             if c.execute("SELECT 1 FROM users WHERE login=?", (ul,)).fetchone(): continue
             make_user(c, "usuario", un, ul, "1234", cam["id"]); n += 1; r = c.execute("SELECT id FROM users WHERE login=?", (ul,)).fetchone()[0]
             if us_:
-                c.execute("UPDATE users SET saldo=saldo-? WHERE id=?", (us_ * 100, cam["id"])); c.execute("UPDATE users SET saldo=? WHERE id=?", (us_ * 100, r)); tx(c, "credito", cam["id"], r, us_ * 100, "Recarga para " + un)
+                c.execute("UPDATE users SET saldo=?, credito=? WHERE id=?", (us_ * 100, us_ * 100, r)); tx(c, "credito", cam["id"], r, us_ * 100, "Limite (fiado) para " + un)
     return jsonify(ok=True, criados=n)
 @app.post("/api/admin/reset")
 @need("admin")
@@ -975,6 +996,71 @@ def relatorios(u):
                    bruto=tot / 100, premios=row("SELECT SUM(retorno) FROM tickets WHERE user_id IN ({}) AND status='ganhou'") / 100,
                    abertos=int(row("SELECT COUNT(*) FROM tickets WHERE user_id IN ({}) AND status='aberto'")),
                    )
+
+# ---------------------------------------------------------------- acertos (fiado): quem deve a quem, toda segunda
+# conta do cliente:  acerto = saldo + apostas em aberto - credito (limite que o cambista deu)
+#   negativo -> o cliente PERDEU e deve ao cambista   |   positivo -> o cliente GANHOU e o cambista deve a ele
+BR = timezone(timedelta(hours=-3))
+def prox_segunda():
+    h = datetime.now(BR).date(); d = (7 - h.weekday()) % 7          # segunda = 0; se hoje e segunda, vence hoje
+    return (h + timedelta(days=d)).isoformat(), d
+_ACERTO_SQL = ("SELECT x.id, x.nome, x.login, x.ativo, x.saldo, COALESCE(x.credito,0) AS credito, x.criado_por AS cid, cam.nome AS cnome, "
+    "COALESCE(SUM(CASE WHEN t.status='aberto' THEN t.valor END),0) AS aberto, "
+    "COALESCE(SUM(CASE WHEN t.status!='cancelado' THEN t.valor END),0) AS apostado, "
+    "COALESCE(SUM(CASE WHEN t.status='ganhou' THEN t.retorno END),0) AS premios, COUNT(t.id) AS bilhetes "
+    "FROM users x LEFT JOIN tickets t ON t.user_id=x.id LEFT JOIN users cam ON cam.id=x.criado_por WHERE x.role='usuario'")
+def _acerto_row(r):
+    net = int(r["saldo"]) + int(r["aberto"]) - int(r["credito"])
+    return dict(id=str(r["id"]), nome=r["nome"], login=r["login"], ativo=bool(r["ativo"]), cambista=r["cnome"], cambistaId=str(r["cid"]) if r["cid"] else None,
+                limite=int(r["credito"]) / 100, saldo=int(r["saldo"]) / 100, emJogo=int(r["aberto"]) / 100, apostado=int(r["apostado"]) / 100,
+                premios=int(r["premios"]) / 100, bilhetes=int(r["bilhetes"]), acerto=net / 100)
+def _acerto_rows(c, where="", args=()):
+    return [_acerto_row(r) for r in c.execute(_ACERTO_SQL + where + " GROUP BY x.id, x.nome, x.login, x.ativo, x.saldo, x.credito, x.criado_por, cam.nome ORDER BY x.nome", args)]
+def _tot(rows):
+    return dict(receber=round(sum(-r["acerto"] for r in rows if r["acerto"] < 0), 2), pagar=round(sum(r["acerto"] for r in rows if r["acerto"] > 0), 2))
+@app.get("/api/acertos")
+@need()
+def acertos(u):
+    c = db(); venc, dias = prox_segunda()
+    if u["role"] == "usuario":
+        rows = _acerto_rows(c, " AND x.id=?", (u["id"],))
+        hist = [dict(data=r["data"], valor=r["valor"] / 100) for r in c.execute("SELECT data, valor FROM acertos WHERE user_id=? ORDER BY id DESC LIMIT 30", (u["id"],))]
+        return jsonify(ok=True, vencimento=venc, dias=dias, eu=rows[0] if rows else None, historico=hist)
+    if u["role"] == "cambista":
+        rows = _acerto_rows(c, " AND x.criado_por=?", (u["id"],))
+        return jsonify(ok=True, vencimento=venc, dias=dias, clientes=rows, **_tot(rows))
+    rows = _acerto_rows(c); grp = {}
+    for r in rows: grp.setdefault(r["cambistaId"], dict(id=r["cambistaId"], nome=r["cambista"] or "—", clientes=[]))["clientes"].append(r)
+    cams = [dict(g, **_tot(g["clientes"])) for g in grp.values()]; cams.sort(key=lambda g: g["nome"].lower())
+    return jsonify(ok=True, vencimento=venc, dias=dias, cambistas=cams, **_tot(rows))
+@app.post("/api/acertos/pagar")
+@need("admin", "cambista")
+def acerto_pagar(u):
+    """Registra que o cliente pagou o que devia (ou que o cambista pagou o que o cliente ganhou). valor opcional = pagamento parcial."""
+    d = request.get_json(silent=True) or {}; c = db()
+    try: cid = int(d.get("cliente"))
+    except (TypeError, ValueError): return err("Selecione um cliente.")
+    c.execute("BEGIN")
+    try:
+        t = c.execute("SELECT * FROM users WHERE id=? AND role='usuario' FOR UPDATE", (cid,)).fetchone()
+        if not t or (u["role"] == "cambista" and t["criado_por"] != u["id"]): c.execute("ROLLBACK"); return err("Cliente não encontrado.")
+        ab = int(c.execute("SELECT COALESCE(SUM(valor),0) FROM tickets WHERE user_id=? AND status='aberto'", (cid,)).fetchone()[0])
+        net = int(t["saldo"]) + ab - int(t["credito"] or 0)
+        if net == 0: c.execute("ROLLBACK"); return err("Este cliente não tem nada a acertar.")
+        v = cents(d["valor"]) if d.get("valor") not in (None, "") else abs(net)
+        if v <= 0 or v > abs(net): c.execute("ROLLBACK"); return err("Valor inválido. O acerto é de R$ %.2f." % (abs(net) / 100))
+        if net < 0:                                                     # cliente pagou ao cambista: abate a divida
+            c.execute("UPDATE users SET credito=credito-? WHERE id=?", (v, cid)); sinal = -v
+        else:                                                           # cambista pagou o premio: sai do saldo do cliente
+            v = min(v, int(t["saldo"]))
+            if v <= 0: c.execute("ROLLBACK"); return err("Cliente sem saldo para pagar agora (bilhetes ainda em aberto).")
+            c.execute("UPDATE users SET saldo=saldo-? WHERE id=?", (v, cid)); sinal = v
+        c.execute("INSERT INTO acertos(data,user_id,cambista_id,valor,por) VALUES(?,?,?,?,?)", (now(), cid, t["criado_por"], sinal, u["id"]))
+        tx(c, "acerto", cid if sinal < 0 else None, None if sinal < 0 else cid, v, ("Acerto: cliente pagou " if sinal < 0 else "Acerto: pago ao cliente ") + t["nome"])
+        c.execute("COMMIT")
+    except Exception:
+        c.execute("ROLLBACK"); raise
+    return jsonify(ok=True, nome=t["nome"], valor=v / 100, sentido="recebido" if sinal < 0 else "pago")
 
 @app.get("/health")
 def health():
