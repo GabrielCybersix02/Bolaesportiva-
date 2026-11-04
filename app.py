@@ -159,11 +159,6 @@ def scope_ids(c, u):
     if u["role"] == "admin": return None
     if u["role"] == "cambista": return [u["id"]] + [r[0] for r in c.execute("SELECT id FROM users WHERE criado_por=?", (u["id"],))]
     return [u["id"]]
-def volume_por_cambista(c, so_id=None):
-    """Total apostado (R$) pelos clientes de cada cambista. Bilhete cancelado/anulado nao conta. Base da comissao."""
-    sql = ("SELECT x.criado_por AS cid, COALESCE(SUM(t.valor),0) AS tot FROM tickets t JOIN users x ON x.id=t.user_id "
-           "WHERE x.criado_por IS NOT NULL AND t.status!='cancelado'" + (" AND x.criado_por=?" if so_id else "") + " GROUP BY x.criado_por")
-    return {str(r["cid"]): float(r["tot"]) / 100 for r in c.execute(sql, (so_id,) if so_id else ())}
 @app.get("/api/state")
 @need()
 def state(u):
@@ -181,14 +176,11 @@ def state(u):
     tks = [dict(id=str(r["id"]), userId=str(r["user_id"]), data=r["data"], selecoes=json.loads(r["selecoes"]), odd=r["odd"],
                 valor=r["valor"] / 100, retorno=r["retorno"] / 100, status=r["status"])
            for r in c.execute(tsql + " ORDER BY id DESC LIMIT 300", targs)]
-    vendas = volume_por_cambista(c, u["id"] if u["role"] == "cambista" else None) if u["role"] in ("admin", "cambista") else {}
-    com = round(vendas.get(str(u["id"]), 0) * COMISSAO, 2) if u["role"] == "cambista" else 0
     cam = None
     if u["role"] == "usuario" and u["criado_por"]:
         r = c.execute("SELECT nome, telefone FROM users WHERE id=?", (u["criado_por"],)).fetchone()
         if r: cam = dict(nome=r["nome"], telefone=r["telefone"] or "")
-    return jsonify(ok=True, me=str(u["id"]), users=us, transactions=txs, tickets=tks, comissao=round(com, 2), comissaoPct=COMISSAO_PCT,
-                   vendas=vendas, cambista=cam)
+    return jsonify(ok=True, me=str(u["id"]), users=us, transactions=txs, tickets=tks, cambista=cam)
 
 # ---------------------------------------------------------------- contas / saldo
 def make_user(c, role, nome, login_, senha, por):
@@ -365,12 +357,12 @@ def odds_loop():
 # guarda o total no banco e se recusa a passar do limite. Os jogos ficam em cache e sao renovados no maximo a cada ODDSPAPI_REFRESH_HOURS.
 OP_KEY = os.environ.get("ODDSPAPI_KEY", "").strip().strip("\"'").strip()
 OP_BASE = "https://api.oddspapi.io/v4"
-OP_BOOKS = [b.strip() for b in os.environ.get("ODDSPAPI_BOOKMAKERS", "pinnacle").split(",") if b.strip()][:3]
+OP_BOOKS = [b.strip() for b in os.environ.get("ODDSPAPI_BOOKMAKERS", "pinnacle,bet365,betano").split(",") if b.strip()][:3]   # mais casas = mais jogos com odds
 OP_HOURS = float(os.environ.get("ODDSPAPI_REFRESH_HOURS", "24"))
 OP_DAYS = max(1, min(9, int(os.environ.get("ODDSPAPI_DAYS", "3"))))
 OP_LIMIT = int(os.environ.get("ODDSPAPI_MONTHLY_LIMIT", "250"))
 OP_RESERVE = int(os.environ.get("ODDSPAPI_RESERVE", "60"))         # sobra para liquidar bilhetes (settlements)
-_op = {"ts": 0, "ev": None, "err": "", "fail": 0, "busy": False, "n": None, "month": "", "merged": (None, None, [])}
+_op = {"ts": 0, "ev": None, "err": "", "fail": 0, "busy": False, "n": None, "month": "", "merged": (None, None, []), "cost": 9, "info": {}, "books": None}
 _op_lock, _op_last, _op_start = threading.Lock(), [0.0], threading.Lock()
 def _op_month(): return time.strftime("%Y-%m", time.gmtime())
 def op_used():
@@ -391,13 +383,13 @@ def op_get(path, reserve=0, **params):
         w = 2.1 - (time.time() - _op_last[0])                       # a API exige ~2s entre chamadas do mesmo endpoint
         if w > 0: time.sleep(w)
         _op_bump()
-        try: r = requests.get(OP_BASE + path, params={**params, "apiKey": OP_KEY}, headers=UA, timeout=60)
+        try: r = requests.get(OP_BASE + path, params={**params, "apiKey": OP_KEY}, headers=UA, timeout=90)
         except Exception as e: raise RuntimeError(("OddsPapi fora do ar: " + str(e))[:150].replace(OP_KEY, "***"))
         finally: _op_last[0] = time.time()
     if not r.ok: raise RuntimeError(f"OddsPapi {r.status_code}: {r.text[:150]}".replace(OP_KEY, "***"))
     return r.json()
-def _op_prices(fx):
-    for b in OP_BOOKS:
+def _op_prices(fx, books=None):
+    for b in (books or OP_BOOKS):
         mk = (((fx.get("bookmakerOdds") or {}).get(b) or {}).get("markets") or {}).get("101")      # mercado 101 = 1X2 tempo normal
         if not mk: continue
         o = mk.get("outcomes") or {}
@@ -408,25 +400,47 @@ def _op_prices(fx):
         h, d, a = pr("101"), pr("102"), pr("103")
         if h and a: return {"1": h, "X": d, "2": a}
     return None
+def _as_list(d):
+    if isinstance(d, list): return d
+    if isinstance(d, dict):
+        for v in d.values():
+            if isinstance(v, list): return v
+    return []
 def op_refresh():
-    t0 = datetime.now(timezone.utc); iso = lambda d: d.strftime("%Y-%m-%dT%H:%M:%SZ")
-    fx = op_get("/fixtures", reserve=OP_RESERVE, sportId=10, statusId=0, hasOdds="true", bookmakers=",".join(OP_BOOKS),
-                **{"from": iso(t0), "to": iso(t0 + timedelta(days=OP_DAYS))})
-    fx = [f for f in fx if isinstance(f, dict) and f.get("fixtureId") and f.get("participant1Name") and f.get("participant2Name") and f.get("startTime")] if isinstance(fx, list) else []
+    t0 = datetime.now(timezone.utc); iso = lambda d: d.strftime("%Y-%m-%dT%H:%M:%SZ"); used0 = op_used()
+    if _op["books"] is None:
+        try: v = kv_get("op:books")[1]
+        except Exception: v = None
+        _op["books"] = v if isinstance(v, list) and v else list(OP_BOOKS)
+    def fixtures(books):
+        return op_get("/fixtures", reserve=OP_RESERVE, sportId=10, statusId=0, hasOdds="true", bookmakers=",".join(books),
+                      **{"from": iso(t0), "to": iso(t0 + timedelta(days=OP_DAYS))})
+    try: fx = fixtures(_op["books"])
+    except RuntimeError as e:
+        if len(_op["books"]) > 1 and re.search(r"OddsPapi 4(00|22)", str(e)):      # alguma casa nao existe com esse nome: fica so na primeira
+            _op["books"] = _op["books"][:1]
+            try: kv_set("op:books", _op["books"])
+            except Exception: pass
+            fx = fixtures(_op["books"])
+        else: raise
+    bks = _op["books"]
+    fx = [f for f in _as_list(fx) if isinstance(f, dict) and f.get("fixtureId") and f.get("participant1Name") and f.get("participant2Name") and f.get("startTime")]
     cnt = {}
     for f in fx: cnt[f.get("tournamentId")] = cnt.get(f.get("tournamentId"), 0) + 1
-    tids = sorted(cnt, key=lambda k: -cnt[k]); batches = [tids[i:i + 20] for i in range(0, len(tids), 20)]
+    tids = sorted(cnt, key=lambda k: -cnt[k]); batches = [tids[i:i + 15] for i in range(0, len(tids), 15)]
     batches = batches[:max(0, OP_LIMIT - OP_RESERVE - op_used())]    # nunca estoura a cota: o que nao couber espera o proximo ciclo
     prices = {}
     for b in batches:
-        data = op_get("/odds-by-tournaments", reserve=OP_RESERVE, tournamentIds=",".join(map(str, b)), bookmakers=",".join(OP_BOOKS))
-        for f in (data if isinstance(data, list) else []):
-            pz = _op_prices(f) if isinstance(f, dict) else None
+        data = op_get("/odds-by-tournaments", reserve=OP_RESERVE, tournamentIds=",".join(map(str, b)), bookmakers=",".join(bks))
+        for f in _as_list(data):
+            pz = _op_prices(f, bks) if isinstance(f, dict) else None
             if pz: prices[f.get("fixtureId")] = pz
     out = [dict(id="op:" + f["fixtureId"], home=f["participant1Name"], away=f["participant2Name"], commence=f["startTime"],
                 league=f.get("tournamentName") or "Outros", key="op_%s_%s" % (f.get("categorySlug", ""), f.get("tournamentSlug", "")),
                 grupo="futebol", odds=prices[f["fixtureId"]]) for f in fx if f["fixtureId"] in prices]
-    if not out: raise RuntimeError("OddsPapi não trouxe jogos com odds (confira o bookmaker em ODDSPAPI_BOOKMAKERS).")
+    _op["info"] = dict(fixtures_com_odds=len(fx), campeonatos=len(tids), lotes=len(batches), jogos_com_preco_1x2=len(out), casas=bks, chamadas=op_used() - used0)
+    _op["cost"] = max(2, op_used() - used0)
+    if not out: raise RuntimeError(f"OddsPapi devolveu {len(fx)} jogos mas nenhum com odds 1X2 (casas: {','.join(bks)}).")
     _op.update(ts=time.time(), ev=out, err="")
     try: kv_set("odds:op", out)
     except Exception as e: print("kv_set odds:op falhou:", e, flush=True)
@@ -440,7 +454,8 @@ def op_kick(force=False):
     if not OP_KEY: return
     if _op["ev"] is None:
         ts, v = kv_get("odds:op"); _op["ts"], _op["ev"] = ts or 0, v or []
-    if (force or time.time() - _op["ts"] >= OP_HOURS * 3600) and (force or time.time() - _op["fail"] > 1800) and _op_start.acquire(blocking=False):
+    gap = max(OP_HOURS, 720.0 * _op["cost"] / max(1, OP_LIMIT - OP_RESERVE))     # espaca as atualizacoes para a cota durar o mes todo
+    if (force or time.time() - _op["ts"] >= gap * 3600) and (force or time.time() - _op["fail"] > 1800) and _op_start.acquire(blocking=False):
         _op["busy"] = True; threading.Thread(target=_op_bg, daemon=True).start()
 def _same(a, b): return bool(a) and bool(b) and (a == b or (min(len(a), len(b)) >= 5 and (a in b or b in a)))
 def merge_op(ev):
@@ -488,7 +503,7 @@ def odds(u):
         if lv and lv.get("completed"): continue                                # placar diz que acabou
         if grupo == "aovivo" and not (-3600 < t - st < 3 * 3600): continue      # comecou ha <3h ou comeca em <1h
         out.append({**e, "started": st <= t})                                    # copia: nao suja o cache
-    return jsonify(ok=True, events=out, updated=ts, logos=logo_map({n for e in out for n in (e["home"], e["away"])}, base)[0])
+    return jsonify(ok=True, events=out, updated=ts, op=dict(busy=bool(_op["busy"]), jogos=len(_op["ev"] or [])) if OP_KEY and base == "futebol" else None, logos=logo_map({n for e in out for n in (e["home"], e["away"])}, base)[0])
 
 # ---- logos dos times
 _pending, _plock, _tries, _inflight = {}, threading.Lock(), {}, set()
@@ -888,7 +903,7 @@ def op_diag(u):
     if request.args.get("run") == "1": op_kick(force=True)
     elif _op["ev"] is None: op_kick()
     out = dict(chave_definida=True, jogos=len(_op["ev"] or []), atualizado_ha_min=round((time.time() - _op["ts"]) / 60) if _op["ts"] else None, atualizando=_op["busy"],
-               uso_no_mes=op_used(), limite=OP_LIMIT, reserva=OP_RESERVE, bookmakers=OP_BOOKS, dias=OP_DAYS, renova_a_cada_horas=OP_HOURS, ultimo_erro=_op["err"], auto_liquidacao=AUTO_SETTLE)
+               info_ultima=_op["info"], odds_api_jogos=len(cached("futebol")[1] or []), uso_no_mes=op_used(), limite=OP_LIMIT, reserva=OP_RESERVE, bookmakers=OP_BOOKS, dias=OP_DAYS, renova_a_cada_horas=OP_HOURS, ultimo_erro=_op["err"], auto_liquidacao=AUTO_SETTLE)
     if request.args.get("conta") == "1":
         def sc(x): return {k: sc(v) for k, v in x.items() if isinstance(v, (dict, int, float, bool)) or k in ("plan", "planName")} if isinstance(x, dict) else x
         try: out["conta"] = sc(requests.get(OP_BASE + "/account", params={"apiKey": OP_KEY}, headers=UA, timeout=20).json())
@@ -918,17 +933,48 @@ def reset(u):
     for t in ("transactions", "tickets"): c.execute(f"DELETE FROM {t}")
     c.execute("DELETE FROM users WHERE role!='admin'"); c.execute("UPDATE users SET pw=?, senha_padrao=1 WHERE id=?", (generate_password_hash("admin123"), u["id"])); c.execute("COMMIT")
     session.clear(); return jsonify(ok=True)
+# ---------------------------------------------------------------- comissoes (menu proprio: cambista ve a dele, ADM ve todas)
+def _com(cents): return round(float(cents or 0) * COMISSAO / 100, 2)
+_COM_BASE = ("FROM tickets t JOIN users x ON x.id=t.user_id JOIN users cam ON cam.id=x.criado_por "
+             "WHERE x.role='usuario' AND cam.role='cambista' AND t.status!='cancelado'")      # bilhete anulado nao conta
+def _com_cambista(c, cid):
+    rows = c.execute("SELECT x.id, x.nome, COUNT(*) AS n, COALESCE(SUM(t.valor),0) AS tot " + _COM_BASE + " AND cam.id=? GROUP BY x.id, x.nome ORDER BY tot DESC", (cid,)).fetchall()
+    rec = c.execute("SELECT t.id, t.data, x.nome, t.valor, t.status " + _COM_BASE + " AND cam.id=? ORDER BY t.id DESC LIMIT 60", (cid,)).fetchall()
+    tot = sum(float(r["tot"]) for r in rows)
+    return dict(pct=COMISSAO_PCT, apostado=tot / 100, comissao=_com(tot), bilhetes=sum(r["n"] for r in rows),
+                clientes=[dict(nome=r["nome"], bilhetes=r["n"], apostado=float(r["tot"]) / 100, comissao=_com(r["tot"])) for r in rows],
+                recentes=[dict(id=str(r["id"]), data=r["data"], cliente=r["nome"], valor=r["valor"] / 100, comissao=_com(r["valor"]), status=r["status"]) for r in rec])
+@app.get("/api/comissoes")
+@need("admin", "cambista")
+def comissoes(u):
+    c = db()
+    if u["role"] == "cambista": return jsonify(ok=True, **_com_cambista(c, u["id"]))
+    try: cid = int(request.args.get("cambista") or 0)
+    except ValueError: cid = 0
+    if cid:                                                     # ADM abrindo um cambista especifico
+        t = c.execute("SELECT nome FROM users WHERE id=? AND role='cambista'", (cid,)).fetchone()
+        if not t: return err("Cambista não encontrado.", 404)
+        return jsonify(ok=True, nome=t["nome"], **_com_cambista(c, cid))
+    vol = {r["cid"]: (r["n"], float(r["tot"])) for r in c.execute("SELECT cam.id AS cid, COUNT(*) AS n, COALESCE(SUM(t.valor),0) AS tot " + _COM_BASE + " GROUP BY cam.id")}
+    cli = {r[0]: r[1] for r in c.execute("SELECT criado_por, COUNT(*) FROM users WHERE role='usuario' AND criado_por IS NOT NULL GROUP BY criado_por")}
+    lst = []
+    for r in c.execute("SELECT id, nome, login, ativo FROM users WHERE role='cambista' ORDER BY nome").fetchall():
+        n, tot = vol.get(r["id"], (0, 0.0))
+        lst.append(dict(id=str(r["id"]), nome=r["nome"], login=r["login"], ativo=bool(r["ativo"]), clientes=cli.get(r["id"], 0), bilhetes=n, apostado=tot / 100, comissao=_com(tot)))
+    lst.sort(key=lambda x: -x["comissao"])
+    return jsonify(ok=True, pct=COMISSAO_PCT, apostado=sum(x["apostado"] for x in lst), comissao=round(sum(x["comissao"] for x in lst), 2), cambistas=lst)
+
 @app.get("/api/relatorios")
 @need("admin", "cambista")
 def relatorios(u):
     c = db(); ids = [r[0] for r in c.execute("SELECT id FROM users WHERE role='usuario'" + ("" if u["role"] == "admin" else " AND criado_por=?"), () if u["role"] == "admin" else (u["id"],))]
-    ph = ",".join("?" * len(ids)) or "NULL"; day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    ph = ",".join("?" * len(ids)) or "NULL"; day = datetime.now(timezone(timedelta(hours=-3))).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc).isoformat()   # "hoje" no horario do Brasil
     row = lambda sql, extra=(): float(c.execute(sql.format(ph), list(ids) + list(extra)).fetchone()[0] or 0)
     tot = row("SELECT SUM(valor) FROM tickets WHERE user_id IN ({}) AND status!='cancelado'")
     return jsonify(ok=True, hoje=int(row("SELECT COUNT(*) FROM tickets WHERE user_id IN ({}) AND data >= ?", (day,))),
                    bruto=tot / 100, premios=row("SELECT SUM(retorno) FROM tickets WHERE user_id IN ({}) AND status='ganhou'") / 100,
                    abertos=int(row("SELECT COUNT(*) FROM tickets WHERE user_id IN ({}) AND status='aberto'")),
-                   comissao=round(tot * COMISSAO / 100, 2) if u["role"] == "cambista" else None, comissaoPct=COMISSAO_PCT)
+                   )
 
 @app.get("/health")
 def health():
