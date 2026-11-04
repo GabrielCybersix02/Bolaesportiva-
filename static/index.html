@@ -519,8 +519,9 @@
         let logoRun = 0, saveLogosTimer = null, STATE_AT = 0, filterTimer = null;
         function saveLogos() { clearTimeout(saveLogosTimer); saveLogosTimer = setTimeout(() => { try { localStorage.setItem('bola_logos', JSON.stringify(LOGOS)); } catch (e) {} }, 800); }
         const MATCH_INDEX = {}, SPORT_LABEL = { futebol: 'Futebol', basquete: 'Basquete', tenis: 'Tênis', mma: 'MMA' };
+        const FIN_MS = { futebol: 2.5 * 3600000, basquete: 3.5 * 3600000, tenis: 5 * 3600000, mma: 6 * 3600000 };   // depois disso o jogo ja acabou
         function buildMatchesData(events) {            // lista plana ordenada por horario; o agrupamento por pais/campeonato e feito ao desenhar
-            return events.map(ev => {
+            return events.filter(ev => Date.now() - new Date(ev.commence).getTime() < (FIN_MS[ev.grupo] || 3 * 3600000)).map(ev => {
                 const date = new Date(ev.commence);
                 const m = { id: ev.id, home: ev.home, away: ev.away, ts: date.getTime(), dayId: getDayId(date), diff: dayDiff(date), dow: date.getDay(), when: fmtWhen(date), started: !!ev.started,
                             odds: ev.odds, league: ev.league, country: leagueCountry(ev.key, ev.grupo), sport: SPORT_LABEL[ev.grupo] || 'Futebol' };
@@ -545,7 +546,7 @@
             const c = SPORT_CACHE[sport]; if (!c) return;
             matchesData = c.data;
             const hora = new Date(c.r.updated * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-            setStatus("Ao Vivo", "bg-emerald-600", `${c.r.events.length} jogos • atualizado às ${hora}`);
+            setStatus("Ao Vivo", "bg-emerald-600", `${c.data.length} jogos • atualizado às ${hora}`);
             renderMatches(document.getElementById('search-teams').value);
             refreshLogos(c.r.events);
         }
