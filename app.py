@@ -373,7 +373,8 @@ SPORTSDB_DELAY = float(os.environ.get("SPORTSDB_DELAY", "2.2"))
 UA = {"User-Agent": "BolaEsportiva/1.0 (logos de times)"}
 
 # ---- football-data.org (escudos oficiais). A chave vem SEMPRE da variavel FOOTBALL_DATA_KEY (nunca no codigo).
-FD_KEY = os.environ.get("FOOTBALL_DATA_KEY", "")
+FD_KEY = os.environ.get("FOOTBALL_DATA_KEY", "").strip().strip("\"'").strip()   # tira espacos/aspas/quebra de linha colados por engano
+_fd_dbg = {"estado": "aguardando", "codigos": {}, "erro": ""}   # diagnostico (aparece em /api/admin/fd)
 FD_BASE = "https://api.football-data.org/v4"
 FD_COMPS = ["PL", "PD", "SA", "BL1", "FL1", "PPL", "DED", "ELC", "BSA", "CL", "EC", "WC"]   # campeonatos do plano gratis
 FD_REFRESH = 24 * 3600                                         # recarrega a tabela de escudos 1x por dia (12 chamadas)
@@ -390,13 +391,16 @@ def _hnum(r, h, default):
     except Exception: return default
 def fd_refresh():
     """Baixa os times de cada campeonato respeitando o limite (10 req/min no plano gratis) lendo os headers de resposta."""
-    out = {}
+    out = {}; _fd_dbg.update(estado="carregando", codigos={}, erro="")
     for code in FD_COMPS:
         for _ in range(3):
             try: r = requests.get(f"{FD_BASE}/competitions/{code}/teams", headers={**UA, "X-Auth-Token": FD_KEY}, timeout=20)
-            except Exception: time.sleep(10); continue
+            except Exception as e: _fd_dbg["erro"] = repr(e)[:200]; time.sleep(10); continue
+            _fd_dbg["codigos"][code] = r.status_code
             if r.status_code == 429: time.sleep(min(70, _hnum(r, "X-RequestCounter-Reset", 60) + 1)); continue
-            if r.status_code == 401: print("football-data: chave invalida (FOOTBALL_DATA_KEY).", flush=True); return 0
+            if r.status_code == 401:
+                _fd_dbg.update(estado="chave invalida", erro=r.text[:200]); print("football-data: chave invalida (FOOTBALL_DATA_KEY).", flush=True); return 0
+            if not r.ok: _fd_dbg["erro"] = f"{code}: {r.status_code} {r.text[:150]}"
             if r.ok:
                 for t in r.json().get("teams") or []:
                     if t.get("crest"):
@@ -405,6 +409,7 @@ def fd_refresh():
                 if _hnum(r, "X-Requests-Available-Minute", 10) <= 1: time.sleep(_hnum(r, "X-RequestCounter-Reset", 60) + 1)
             break                                              # 403 = campeonato fora do plano: pula
         time.sleep(6.5)                                        # folga extra: 12 campeonatos em ~80s, sem estourar o limite
+    _fd_dbg["estado"] = "ok" if out else "falhou"
     if out:
         _fd.update(out)
         try: kv_set("fd:crests", out)
@@ -424,7 +429,7 @@ def fd_loop():
             if time.time() - (ts or 0) >= FD_REFRESH or not _fd:
                 if fd_refresh(): ts = time.time()
                 else: wait = 600                               # falhou: tenta de novo em 10 min (antes esperava 24h)
-        except Exception as e: print("fd_refresh falhou:", e, flush=True); wait = 600
+        except Exception as e: print("fd_refresh falhou:", e, flush=True); _fd_dbg.update(estado="excecao", erro=repr(e)[:200]); wait = 600
         time.sleep(wait)
 def load_logos():
     try:
@@ -514,7 +519,7 @@ def logos():
 @app.get("/api/admin/fd")
 @need("admin")
 def fd_status(u):                                              # diagnostico: abra /api/admin/fd logado como admin
-    return jsonify(ok=True, chave_definida=bool(FD_KEY), escudos=len(_fd), exemplo=list(_fd.items())[:3])
+    return jsonify(ok=True, chave_definida=bool(FD_KEY), tamanho_chave=len(FD_KEY), escudos=len(_fd), exemplo=list(_fd.items())[:3], diagnostico=_fd_dbg)
 threading.Thread(target=fd_loop, daemon=True).start()
 threading.Thread(target=logo_worker, daemon=True).start()
 threading.Thread(target=odds_loop, daemon=True).start()
