@@ -379,7 +379,7 @@ FD_BASE = "https://api.football-data.org/v4"
 FD_COMPS = ["PL", "PD", "SA", "BL1", "FL1", "PPL", "DED", "ELC", "BSA", "CL", "EC", "WC"]   # campeonatos do plano gratis
 FD_REFRESH = 24 * 3600                                         # recarrega a tabela de escudos 1x por dia (12 chamadas)
 _fd = {}                                                       # nome normalizado -> url do escudo
-_STOP = {"fc", "cf", "afc", "sc", "ac", "as", "cd", "rc", "rcd", "sk", "fk", "ssc", "ud", "sd", "ca", "us", "ss", "club", "clube", "ec", "cr", "de", "calcio", "the"}
+_STOP = {"fc", "cf", "afc", "sc", "ac", "as", "cd", "rc", "rcd", "sk", "fk", "ssc", "ud", "sd", "ca", "us", "ss", "club", "clube", "ec", "cr", "de", "do", "da", "dos", "das", "calcio", "the"}
 def norm(s):
     """'Club Atlético de Madrid' e 'Atlético Madrid' viram a mesma chave."""
     s = unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode().lower().replace("&", " and ").replace("athletico", "atletico")
