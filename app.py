@@ -13,7 +13,8 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "")   # string de conexao do Supab
 ODDS_KEY = os.environ.get("ODDS_API_KEY", "")        # NUNCA coloque a chave no codigo: defina ODDS_API_KEY no Render
 ODDS_BASE = "https://api.the-odds-api.com/v4"
 CACHE_MIN = int(os.environ.get("ODDS_CACHE_MINUTES", "15"))
-COMISSAO = float(os.environ.get("COMISSAO_PCT", "10")) / 100   # % do cambista sobre apostas dos seus usuarios
+COMISSAO_PCT = float(os.environ.get("COMISSAO_PCT", "10"))      # % do cambista sobre TODO valor apostado pelos clientes dele
+COMISSAO = COMISSAO_PCT / 100
 GROUPS = {"futebol": "Soccer", "basquete": "Basketball", "tenis": "Tennis", "mma": "Mixed Martial Arts"}
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
@@ -158,6 +159,11 @@ def scope_ids(c, u):
     if u["role"] == "admin": return None
     if u["role"] == "cambista": return [u["id"]] + [r[0] for r in c.execute("SELECT id FROM users WHERE criado_por=?", (u["id"],))]
     return [u["id"]]
+def volume_por_cambista(c, so_id=None):
+    """Total apostado (R$) pelos clientes de cada cambista. Bilhete cancelado/anulado nao conta. Base da comissao."""
+    sql = ("SELECT x.criado_por AS cid, COALESCE(SUM(t.valor),0) AS tot FROM tickets t JOIN users x ON x.id=t.user_id "
+           "WHERE x.criado_por IS NOT NULL AND t.status!='cancelado'" + (" AND x.criado_por=?" if so_id else "") + " GROUP BY x.criado_por")
+    return {str(r["cid"]): float(r["tot"]) / 100 for r in c.execute(sql, (so_id,) if so_id else ())}
 @app.get("/api/state")
 @need()
 def state(u):
@@ -175,14 +181,14 @@ def state(u):
     tks = [dict(id=str(r["id"]), userId=str(r["user_id"]), data=r["data"], selecoes=json.loads(r["selecoes"]), odd=r["odd"],
                 valor=r["valor"] / 100, retorno=r["retorno"] / 100, status=r["status"])
            for r in c.execute(tsql + " ORDER BY id DESC LIMIT 300", targs)]
-    com = 0
-    if u["role"] == "cambista":
-        com = float(c.execute("SELECT COALESCE(SUM(t.valor),0) FROM tickets t JOIN users x ON x.id=t.user_id WHERE x.criado_por=? AND t.status!='cancelado'", (u["id"],)).fetchone()[0]) * COMISSAO / 100
+    vendas = volume_por_cambista(c, u["id"] if u["role"] == "cambista" else None) if u["role"] in ("admin", "cambista") else {}
+    com = round(vendas.get(str(u["id"]), 0) * COMISSAO, 2) if u["role"] == "cambista" else 0
     cam = None
     if u["role"] == "usuario" and u["criado_por"]:
         r = c.execute("SELECT nome, telefone FROM users WHERE id=?", (u["criado_por"],)).fetchone()
         if r: cam = dict(nome=r["nome"], telefone=r["telefone"] or "")
-    return jsonify(ok=True, me=str(u["id"]), users=us, transactions=txs, tickets=tks, comissao=round(com, 2), cambista=cam)
+    return jsonify(ok=True, me=str(u["id"]), users=us, transactions=txs, tickets=tks, comissao=round(com, 2), comissaoPct=COMISSAO_PCT,
+                   vendas=vendas, cambista=cam)
 
 # ---------------------------------------------------------------- contas / saldo
 def make_user(c, role, nome, login_, senha, por):
@@ -288,15 +294,24 @@ def fetch_group(grupo):
     if sports.status_code == 429: raise RuntimeError("Limite de requisições da API excedido.")
     sports.raise_for_status()
     lst = [s for s in sports.json() if s["group"] == GROUPS[grupo] and s["active"] and not s.get("has_outrights")]
-    def one(s):                                    # antes: um campeonato por vez (30+ chamadas em fila). Agora em paralelo.
-        try:
-            r = requests.get(f"{ODDS_BASE}/sports/{s['key']}/odds/", timeout=20,
-                             params={"apiKey": ODDS_KEY, "regions": "eu", "markets": "h2h", "oddsFormat": "decimal", "dateFormat": "iso"})
-            return parse_events(r.json(), s["key"], grupo) if r.ok else None
-        except Exception:
-            return None
-    with ThreadPoolExecutor(max_workers=8) as ex: parts = list(ex.map(one, lst))
+    def one(s):                                    # em paralelo; tenta ate 3x (429/5xx/timeout) para nenhuma liga sumir por falha momentanea
+        for i in range(3):
+            try:
+                r = requests.get(f"{ODDS_BASE}/sports/{s['key']}/odds/", timeout=20,
+                                 params={"apiKey": ODDS_KEY, "regions": "eu", "markets": "h2h", "oddsFormat": "decimal", "dateFormat": "iso"})
+                if r.ok: return parse_events(r.json(), s["key"], grupo)
+                if r.status_code in (404, 422): return []           # liga sem odds agora: nao e erro
+                if r.status_code not in (429, 500, 502, 503, 504): return None
+            except Exception: pass
+            time.sleep(1.2 * (i + 1))
+        return None
+    with ThreadPoolExecutor(max_workers=6) as ex: parts = list(ex.map(one, lst))
     out = [e for p in parts if p for e in p]
+    falhou = [s["key"] for s, p in zip(lst, parts) if p is None]
+    if falhou:                                     # liga que falhou agora: reaproveita os jogos dela do cache anterior (ainda futuros)
+        antigo = (cached(grupo)[1] or []); t0 = time.time() - 3 * 3600; ja = {e["id"] for e in out}
+        out += [e for e in antigo if e.get("key") in falhou and e["id"] not in ja and _ts(e["commence"]) > t0]
+        print("odds: ligas com falha, mantidas do cache:", falhou, flush=True)
     if lst and all(p is None for p in parts): raise RuntimeError("API de odds indisponível no momento.")   # mantem o cache antigo
     if not out and not lst: raise RuntimeError("Nenhum campeonato ativo no momento.")
     return out
@@ -720,7 +735,7 @@ def relatorios(u):
     return jsonify(ok=True, hoje=int(row("SELECT COUNT(*) FROM tickets WHERE user_id IN ({}) AND data >= ?", (day,))),
                    bruto=tot / 100, premios=row("SELECT SUM(retorno) FROM tickets WHERE user_id IN ({}) AND status='ganhou'") / 100,
                    abertos=int(row("SELECT COUNT(*) FROM tickets WHERE user_id IN ({}) AND status='aberto'")),
-                   comissao=round(tot * COMISSAO / 100, 2) if u["role"] == "cambista" else None)
+                   comissao=round(tot * COMISSAO / 100, 2) if u["role"] == "cambista" else None, comissaoPct=COMISSAO_PCT)
 
 @app.get("/health")
 def health():
