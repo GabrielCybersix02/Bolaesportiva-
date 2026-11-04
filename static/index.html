@@ -785,9 +785,14 @@
         }
 
         function bilheteWhats(r) {
-            const L = ['*BOLA ESPORTIVA - BILHETE #' + r.id + '*', 'Apostador: ' + r.usuario, 'Cambista: ' + (r.cambista ? r.cambista.nome : '-'), ''];
-            r.selecoes.forEach((s, i) => L.push((i + 1) + ') ' + s.jogo, '    Palpite: ' + s.palpite + ' @ ' + Number(s.odd).toFixed(2)));
-            L.push('', 'Odd total: ' + Number(r.odd).toFixed(2), 'Valor: ' + money(r.valor), 'Retorno possível: ' + money(r.retorno), '', new Date().toLocaleString('pt-BR'));
+            const kc = n => String(n).split('').map(d => d + '️⃣').join('');     // 1 -> 1️⃣, 12 -> 1️⃣2️⃣
+            const dt = new Date(), dia = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const hora = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const L = ['🎟️━━━━━━━━━━━━━━🎟️', '   🍀 *SEU BILHETE* 🍀', '🎟️━━━━━━━━━━━━━━🎟️', '',
+                '👤 *Nome:* ' + r.usuario, '🔖 *Bilhete Nº:* #' + String(r.id).padStart(6, '0'), '📅 *Data:* ' + dia + ' ⏰ ' + hora, '', '🎯 *Seus palpites:*'];
+            r.selecoes.forEach((s, i) => L.push(kc(i + 1) + ' ' + s.jogo, '     Palpite: *' + s.palpite + '* (odd ' + Number(s.odd).toFixed(2) + ')'));
+            L.push('', '📊 *Odd total:* ' + Number(r.odd).toFixed(2), '💰 *Valor apostado:* ' + money(r.valor), '🏆 *Prêmio possível:* ' + money(r.retorno), '',
+                '✅ *Status:* Aguardando término dos jogos', '', '━━━━━━━━━━━━━━━━', '🔒 Guarde este bilhete!', '🍀 *Boa sorte!* 🍀');
             return L.join('\n');
         }
         async function confirmBet() {
