@@ -598,9 +598,16 @@ threading.Thread(target=odds_loop, daemon=True).start()
 
 # ---------------------------------------------------------------- apostas
 @app.post("/api/bets")
-@need("usuario")
+@need("usuario", "cambista")
 def bet(u):
     d = request.get_json(silent=True) or {}; sel = d.get("selecoes") or []; stake = cents(d.get("valor"))
+    por, feito_por = "", None
+    if u["role"] == "cambista":                    # cambista faz o bilhete em nome de um cliente dele (debita o saldo do cliente)
+        try: cid = int(d.get("clienteId"))
+        except (TypeError, ValueError): cid = None
+        cli = db().execute("SELECT * FROM users WHERE id=? AND role='usuario' AND criado_por=? AND ativo=1", (cid, u["id"])).fetchone() if cid else None
+        if not cli: return err("Selecione um cliente válido da sua lista.")
+        por = f" • feito por {u['nome']}"; feito_por, u = u, cli
     if not sel: return err("Adicione pelo menos uma seleção.")
     if stake < 100: return err("Aposta mínima: R$ 1,00.")
     odd, final, seen = 1.0, [], set()
@@ -618,11 +625,11 @@ def bet(u):
     odd = round(odd, 2); c = db(); c.execute("BEGIN")
     try:
         if stake > c.execute("SELECT saldo FROM users WHERE id=? FOR UPDATE", (u["id"],)).fetchone()[0]:
-            c.execute("ROLLBACK"); return err("Saldo insuficiente. Peça uma recarga ao seu cambista.")
+            c.execute("ROLLBACK"); return err("Saldo insuficiente do cliente. Faça uma recarga para ele no painel." if feito_por else "Saldo insuficiente. Peça uma recarga ao seu cambista.")
         c.execute("UPDATE users SET saldo=saldo-? WHERE id=?", (stake, u["id"]))
         tid = c.execute("INSERT INTO tickets(user_id,data,selecoes,odd,valor,retorno) VALUES(?,?,?,?,?,?) RETURNING id",
                         (u["id"], now(), json.dumps(final), odd, stake, int(round(stake * odd)))).fetchone()[0]
-        tx(c, "aposta", u["id"], None, stake, f"Bilhete #{tid} ({len(final)} seleç{'ões' if len(final) > 1 else 'ão'}) odd {odd:.2f}")
+        tx(c, "aposta", u["id"], None, stake, f"Bilhete #{tid} ({len(final)} seleç{'ões' if len(final) > 1 else 'ão'}) odd {odd:.2f}{por}")
         c.execute("COMMIT")
     except Exception:
         c.execute("ROLLBACK"); raise
