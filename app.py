@@ -357,7 +357,7 @@ def odds_loop():
 # guarda o total no banco e se recusa a passar do limite. Os jogos ficam em cache e sao renovados no maximo a cada ODDSPAPI_REFRESH_HOURS.
 OP_KEY = os.environ.get("ODDSPAPI_KEY", "").strip().strip("\"'").strip()
 OP_BASE = "https://api.oddspapi.io/v4"
-OP_BOOKS = [b.strip() for b in os.environ.get("ODDSPAPI_BOOKMAKERS", "pinnacle,bet365,betano").split(",") if b.strip()][:3]   # mais casas = mais jogos com odds
+OP_BOOKS = [b.strip() for b in os.environ.get("ODDSPAPI_BOOKMAKERS", "pinnacle").split(",") if b.strip()][:1]   # mais casas = mais jogos com odds
 OP_HOURS = float(os.environ.get("ODDSPAPI_REFRESH_HOURS", "24"))
 OP_DAYS = max(1, min(9, int(os.environ.get("ODDSPAPI_DAYS", "3"))))
 OP_LIMIT = int(os.environ.get("ODDSPAPI_MONTHLY_LIMIT", "250"))
@@ -386,7 +386,7 @@ def op_get(path, reserve=0, **params):
         try: r = requests.get(OP_BASE + path, params={**params, "apiKey": OP_KEY}, headers=UA, timeout=90)
         except Exception as e: raise RuntimeError(("OddsPapi fora do ar: " + str(e))[:150].replace(OP_KEY, "***"))
         finally: _op_last[0] = time.time()
-    if not r.ok: raise RuntimeError(f"OddsPapi {r.status_code}: {r.text[:150]}".replace(OP_KEY, "***"))
+    if not r.ok: raise RuntimeError(f"OddsPapi {r.status_code}: {r.text[:400]}".replace(OP_KEY, "***"))
     return r.json()
 def _op_prices(fx, books=None):
     for b in (books or OP_BOOKS):
@@ -413,7 +413,7 @@ def op_refresh():
         except Exception: v = None
         _op["books"] = v if isinstance(v, list) and v else list(OP_BOOKS)
     def fixtures(books):
-        return op_get("/fixtures", reserve=OP_RESERVE, sportId=10, statusId=0, hasOdds="true", bookmakers=",".join(books),
+        return op_get("/fixtures", reserve=OP_RESERVE, sportId=10, statusId=0, hasOdds="true", bookmaker=books[0],
                       **{"from": iso(t0), "to": iso(t0 + timedelta(days=OP_DAYS))})
     try: fx = fixtures(_op["books"])
     except RuntimeError as e:
@@ -427,11 +427,11 @@ def op_refresh():
     fx = [f for f in _as_list(fx) if isinstance(f, dict) and f.get("fixtureId") and f.get("participant1Name") and f.get("participant2Name") and f.get("startTime")]
     cnt = {}
     for f in fx: cnt[f.get("tournamentId")] = cnt.get(f.get("tournamentId"), 0) + 1
-    tids = sorted(cnt, key=lambda k: -cnt[k]); batches = [tids[i:i + 15] for i in range(0, len(tids), 15)]
+    tids = sorted(cnt, key=lambda k: -cnt[k]); batches = [tids[i:i + 5] for i in range(0, len(tids), 5)]
     batches = batches[:max(0, OP_LIMIT - OP_RESERVE - op_used())]    # nunca estoura a cota: o que nao couber espera o proximo ciclo
     prices = {}
     for b in batches:
-        data = op_get("/odds-by-tournaments", reserve=OP_RESERVE, tournamentIds=",".join(map(str, b)), bookmakers=",".join(bks))
+        data = op_get("/odds-by-tournaments", reserve=OP_RESERVE, tournamentIds=",".join(map(str, b)), bookmaker=bks[0])
         for f in _as_list(data):
             pz = _op_prices(f, bks) if isinstance(f, dict) else None
             if pz: prices[f.get("fixtureId")] = pz
@@ -447,7 +447,7 @@ def op_refresh():
     print(f"oddspapi: {len(out)} jogos de {len(batches)} lotes (uso do mes: {op_used()}/{OP_LIMIT}).", flush=True)
 def _op_bg():
     try: op_refresh()
-    except Exception as e: _op["err"] = str(e)[:200]; _op["fail"] = time.time(); print("oddspapi falhou:", e, flush=True)
+    except Exception as e: _op["err"] = str(e)[:500]; _op["fail"] = time.time(); print("oddspapi falhou:", e, flush=True)
     finally: _op["busy"] = False; _op_start.release()
 def op_kick(force=False):
     """Carrega o cache salvo e, se estiver velho, renova por tras (no maximo 1x a cada ODDSPAPI_REFRESH_HOURS)."""
@@ -544,7 +544,7 @@ def fd_refresh():
             if r.status_code == 429: time.sleep(min(70, _hnum(r, "X-RequestCounter-Reset", 60) + 1)); continue
             if r.status_code == 401:
                 _fd_dbg.update(estado="chave invalida", erro=r.text[:200]); print("football-data: chave invalida (FOOTBALL_DATA_KEY).", flush=True); return 0
-            if not r.ok: _fd_dbg["erro"] = f"{code}: {r.status_code} {r.text[:150]}"
+            if not r.ok: _fd_dbg["erro"] = f"{code}: {r.status_code} {r.text[:400]}"
             if r.ok:
                 for t in r.json().get("teams") or []:
                     if t.get("crest"):
