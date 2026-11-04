@@ -396,7 +396,7 @@ def fd_refresh():
             try: r = requests.get(f"{FD_BASE}/competitions/{code}/teams", headers={**UA, "X-Auth-Token": FD_KEY}, timeout=20)
             except Exception: time.sleep(10); continue
             if r.status_code == 429: time.sleep(min(70, _hnum(r, "X-RequestCounter-Reset", 60) + 1)); continue
-            if r.status_code == 401: print("football-data: chave invalida (FOOTBALL_DATA_KEY).", flush=True); return
+            if r.status_code == 401: print("football-data: chave invalida (FOOTBALL_DATA_KEY).", flush=True); return 0
             if r.ok:
                 for t in r.json().get("teams") or []:
                     if t.get("crest"):
@@ -410,6 +410,8 @@ def fd_refresh():
         try: kv_set("fd:crests", out)
         except Exception as e: print("kv_set fd falhou:", e, flush=True)
         print(f"football-data: {len(out)} escudos carregados.", flush=True)
+    else: print("football-data: nenhum escudo carregado (veja o status da chave/limite).", flush=True)
+    return len(out)
 def fd_loop():
     if not FD_KEY: print("football-data: FOOTBALL_DATA_KEY nao definida (usando TheSportsDB/Wikipedia).", flush=True); return
     try:
@@ -417,10 +419,13 @@ def fd_loop():
         if v: _fd.update(v)
     except Exception: ts = 0
     while True:
+        wait = 3600
         try:
-            if time.time() - (ts or 0) >= FD_REFRESH: fd_refresh(); ts = time.time()
-        except Exception as e: print("fd_refresh falhou:", e, flush=True)
-        time.sleep(3600)
+            if time.time() - (ts or 0) >= FD_REFRESH or not _fd:
+                if fd_refresh(): ts = time.time()
+                else: wait = 600                               # falhou: tenta de novo em 10 min (antes esperava 24h)
+        except Exception as e: print("fd_refresh falhou:", e, flush=True); wait = 600
+        time.sleep(wait)
 def load_logos():
     try:
         c = raw()
@@ -433,6 +438,8 @@ def logo_map(names, grupo="futebol"):
     """Tudo em memoria (antes: 1 consulta ao banco por time a cada pedido de odds)."""
     res, pend, t = {}, 0, time.time()
     for n in names:
+        f_ = fd_lookup(n) if grupo == "futebol" else None
+        if f_: LOGO[n] = res[n] = f_; continue                  # escudo oficial vence qualquer cache antigo (inclusive "nao achou")
         u_ = LOGO.get(n)
         if u_: res[n] = u_; continue
         if grupo in ("tenis", "mma"): continue                  # sao atletas, nao times
@@ -504,6 +511,10 @@ def logos():
     d = request.get_json(silent=True) or {}
     res, pend = logo_map({str(n) for n in (d.get("names") or [])[:300]}, str(d.get("grupo", "futebol")))
     return jsonify(ok=True, logos=res, pendentes=pend)
+@app.get("/api/admin/fd")
+@need("admin")
+def fd_status(u):                                              # diagnostico: abra /api/admin/fd logado como admin
+    return jsonify(ok=True, chave_definida=bool(FD_KEY), escudos=len(_fd), exemplo=list(_fd.items())[:3])
 threading.Thread(target=fd_loop, daemon=True).start()
 threading.Thread(target=logo_worker, daemon=True).start()
 threading.Thread(target=odds_loop, daemon=True).start()
