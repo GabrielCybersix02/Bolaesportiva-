@@ -462,9 +462,31 @@ def _sportsdb(q, soccer):
         b = t.get("strBadge") or t.get("strTeamBadge")
         if b: return b, False
     return None, False
+SM_KEY = os.environ.get("SPORTMONKS_KEY", "").strip().strip("\"'").strip()   # chave SO na variavel de ambiente (nunca no codigo)
+_sm_dbg = {"ultimo_status": None, "erro": ""}
+def _sportmonks(n):
+    """Busca o escudo no Sportmonks. Devolve (url|None, transitorio). Token vai no header, nao na URL (nao aparece em logs)."""
+    r = requests.get("https://api.sportmonks.com/v3/football/teams/search/" + requests.utils.quote(n, safe=""), timeout=10,
+                     headers={**UA, "Authorization": SM_KEY}, params={"per_page": 10})
+    _sm_dbg["ultimo_status"] = r.status_code
+    if r.status_code in (401, 403): _sm_dbg["erro"] = r.text[:150]; return None, False      # chave/plano sem acesso: nao adianta insistir
+    if r.status_code == 429 or r.status_code >= 500: return None, True
+    if not r.ok: return None, False
+    k = norm(n); teams = [t for t in ((r.json() or {}).get("data") or []) if t.get("image_path") and not t.get("placeholder")]
+    for t in teams:
+        if norm(t.get("name", "")) == k: return t["image_path"], False                    # nome igual: certeza
+    if len(teams) == 1 and len(k) >= 5 and (k in norm(teams[0].get("name", "")) or norm(teams[0].get("name", "")) in k):
+        return teams[0]["image_path"], False                                              # unico resultado parecido
+    return None, False
 def find_logo(n, grupo):
     """Devolve a url, '' (nao existe de verdade) ou None (falha temporaria: tentar de novo)."""
     transient, soccer = False, grupo == "futebol"
+    if SM_KEY and soccer:
+        try:
+            b, tr = _sportmonks(n)
+            if b: return b
+            transient = transient or tr
+        except Exception as e: _sm_dbg["erro"] = repr(e)[:150]; transient = True
     short = re.sub(r"^(FC|AFC|CF|SC|AC|AS|CD|RC|RCD|SK|FK)\s+|\s+(FC|AFC|CF|SC|AC)$", "", n).strip()
     for q in dict.fromkeys([n, short]):
         if not q: continue
@@ -519,7 +541,8 @@ def logos():
 @app.get("/api/admin/fd")
 @need("admin")
 def fd_status(u):                                              # diagnostico: abra /api/admin/fd logado como admin
-    return jsonify(ok=True, chave_definida=bool(FD_KEY), tamanho_chave=len(FD_KEY), escudos=len(_fd), exemplo=list(_fd.items())[:3], diagnostico=_fd_dbg)
+    return jsonify(ok=True, chave_definida=bool(FD_KEY), tamanho_chave=len(FD_KEY), escudos=len(_fd), exemplo=list(_fd.items())[:3], diagnostico=_fd_dbg,
+                   sportmonks=dict(chave_definida=bool(SM_KEY), **_sm_dbg))
 threading.Thread(target=fd_loop, daemon=True).start()
 threading.Thread(target=logo_worker, daemon=True).start()
 threading.Thread(target=odds_loop, daemon=True).start()
