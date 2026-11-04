@@ -26,9 +26,9 @@ static/
 | `SPORTMONKS_KEY` | não | Token do Sportmonks (escudos de reserva; nunca no código) |
 | `SPORTSDB_KEY` | não | chave do TheSportsDB (padrão `3`, grátis, 30 req/min) |
 | `ODDSPAPI_KEY` | recomendado | Chave da oddspapi.io (nunca no código). Soma jogos de futebol de muitas outras ligas |
-| `ODDSPAPI_REFRESH_HOURS` | não | padrão 24 (o plano grátis tem só 250 chamadas/mês; cada atualização gasta ~5 a 9) |
+| `ODDSPAPI_REFRESH_HOURS` | não | mínimo entre atualizações (padrão 24). O código aumenta sozinho esse intervalo para a cota de 250 chamadas/mês durar o mês todo |
 | `ODDSPAPI_DAYS` | não | padrão 3 (quantos dias à frente buscar, máx. 9) |
-| `ODDSPAPI_BOOKMAKERS` | não | padrão `pinnacle` (até 3, separados por vírgula) |
+| `ODDSPAPI_BOOKMAKERS` | não | padrão `pinnacle,bet365,betano` (até 3; se alguma não existir, o código usa só a primeira) |
 | `ODDSPAPI_MONTHLY_LIMIT` | não | padrão 250 (o código para sozinho antes de estourar a cota) |
 | `AUTO_SETTLE` | não | padrão 1 (bilhetes de futebol/basquete são liquidados sozinhos; `0` desliga) |
 | `DB_POOL` | não | conexões simultâneas com o banco (padrão 6) |
@@ -37,4 +37,6 @@ Start command: `gunicorn -w 1 --threads 8 --timeout 90 -b 0.0.0.0:$PORT app:app`
 
 Login inicial: `admin` / `admin123` (troque na hora). As tabelas são criadas sozinhas no primeiro start.
 
-Diagnóstico (logado como admin): `/api/admin/oddspapi` (status), `?run=1` (atualiza agora), `?conta=1` (consulta a conta).
+Comissões: menu lateral → *Minha Comissão* (cambista) e *Comissões dos Cambistas* (ADM). Não aparecem em mais nenhuma tela.
+
+Diagnóstico (logado como admin): no Painel do ADM, cartão *Fontes de jogos*; ou `/api/admin/oddspapi` (status), `?run=1` (atualiza agora), `?conta=1` (consulta a conta).
