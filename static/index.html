@@ -52,6 +52,20 @@
         .sk { background: linear-gradient(90deg, #E3EAF6 25%, #F3F6FC 37%, #E3EAF6 63%); background-size: 400% 100%; animation: sk 1.4s ease infinite; }
         @keyframes sk { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
         button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #FACC15; outline-offset: 2px; }
+        body .rounded-sm { border-radius: .7rem; }
+        header.bg-brand-blue { background-image: linear-gradient(135deg, #2F6BFF 0%, #1445C7 100%); }
+        .hero { box-shadow: 0 14px 28px -14px rgba(20,69,199,.7); border-radius: 1rem; }
+        .country-h { background: linear-gradient(90deg, #1F5EFF, #1445C7); }
+        .league-h { background: #E3EAF8; border-left: 4px solid #1F5EFF; }
+        .day-tab, .lg-chip { display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; font-weight: 700; border-radius: 9999px; border: 1px solid #D3DCEC; background: #fff; color: #334155; padding: .45rem .8rem; flex-shrink: 0; transition: background .15s, color .15s; }
+        .day-tab.on { background: #1F5EFF; color: #fff; border-color: #1F5EFF; box-shadow: 0 6px 14px -8px rgba(31,94,255,.9); }
+        .lg-chip { font-size: 11px; padding: .3rem .65rem; background: #F1F5FC; }
+        .lg-chip.on { background: #0A1F4F; color: #fff; border-color: #0A1F4F; }
+        .cnt { font-size: 10px; font-weight: 800; min-width: 1.3rem; text-align: center; padding: .05rem .3rem; border-radius: 9999px; background: rgba(15,23,42,.09); }
+        .on .cnt { background: rgba(255,255,255,.26); }
+        .odd-b { box-shadow: 0 2px 0 rgba(0,0,0,.28); }
+        #matches-container .border-b:active { background: #F5F8FE; }
+        .com-card { background: linear-gradient(135deg, #0A1F4F, #1445C7); }
         @media (prefers-reduced-motion: reduce) { .sk { animation: none; } * { transition: none !important; } }
     </style>
 </head>
@@ -243,14 +257,8 @@
                 </div>
 
                 <!-- Filtro por dia -->
-                <div class="flex gap-1.5 overflow-x-auto no-scrollbar px-2.5 py-2 bg-white border-b border-gray-200 text-xs" id="day-tabs">
-                    <button onclick="filterByDay('all')" class="day-tab px-3 py-1.5 rounded-full whitespace-nowrap font-bold border bg-brand-blue text-white border-brand-blue" data-day="all">Todos</button>
-                    <button onclick="filterByDay('hoje')" class="day-tab px-3 py-1.5 rounded-full whitespace-nowrap font-bold border bg-white text-gray-700 border-gray-300" data-day="hoje">Hoje</button>
-                    <button onclick="filterByDay('amanha')" class="day-tab px-3 py-1.5 rounded-full whitespace-nowrap font-bold border bg-white text-gray-700 border-gray-300" data-day="amanha">Amanhã</button>
-                    <button onclick="filterByDay('quinta')" class="day-tab px-3 py-1.5 rounded-full whitespace-nowrap font-bold border bg-white text-gray-700 border-gray-300" data-day="quinta">Quinta-feira</button>
-                    <button onclick="filterByDay('fim-de-semana')" class="day-tab px-3 py-1.5 rounded-full whitespace-nowrap font-bold border bg-white text-gray-700 border-gray-300" data-day="fim-de-semana">Fim de Semana</button>
-                    <button onclick="filterByDay('proximos')" class="day-tab px-3 py-1.5 rounded-full whitespace-nowrap font-bold border bg-white text-gray-700 border-gray-300" data-day="proximos">Próximos Dias</button>
-                </div>
+                <div class="flex gap-1.5 overflow-x-auto no-scrollbar px-2.5 py-2.5 bg-white text-xs" id="day-tabs"></div>
+                <div class="flex gap-1.5 overflow-x-auto no-scrollbar px-2.5 pb-2.5 bg-white border-b border-gray-200 text-xs" id="league-chips"></div>
 
                 <div id="matches-container"></div>
             </div>
@@ -288,6 +296,7 @@
                     <div class="bg-brand-cardBg p-2.5 rounded-sm text-center border border-gray-200">
                         <span class="text-xs font-semibold text-gray-700 block">Comissões</span>
                         <span class="text-xl font-extrabold text-brand-textDark block mt-0.5">R$ 0,00</span>
+                        <span id="caixa-com-info" class="block text-[11px] text-gray-500 font-semibold mt-0.5"></span>
                     </div>
                     <div class="bg-brand-cardBg p-2.5 rounded-sm text-center border border-gray-200">
                         <span class="text-xs font-semibold text-gray-700 block">Total</span>
@@ -444,8 +453,8 @@
         let currentDayFilter = 'all';
         let matchesData = [];
 
-        const DAY_TITLES = { hoje: "Hoje", amanha: "Amanhã", quinta: "Quinta-feira", "fim-de-semana": "Fim de Semana", proximos: "Próximos Dias" };
-        const DAY_ORDER = ["hoje", "amanha", "quinta", "fim-de-semana", "proximos"];
+        const DAY_TITLES = { hoje: "Hoje", amanha: "Amanhã", "fim-de-semana": "Fim de Semana", depois: "Mais para frente" };
+        let currentLeague = '';
 
         function setStatus(text, color, info) {
             const badge = document.getElementById('api-status-badge');
@@ -456,13 +465,24 @@
 
         function startOfDay(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
 
+        const dayDiff = date => Math.round((startOfDay(date) - startOfDay(new Date())) / 86400000);
+        const pad2 = n => String(n).padStart(2, '0');
+        // cada dia tem a sua propria aba (Hoje, Amanhã, Sex 06/11...): assim nenhuma liga some dentro de um "balaio" de dias
         function getDayId(date) {
-            const diff = Math.round((startOfDay(date) - startOfDay(new Date())) / 86400000);
+            const diff = dayDiff(date);
             if (diff <= 0) return "hoje";
             if (diff === 1) return "amanha";
-            if (date.getDay() === 4) return "quinta";
-            if (date.getDay() === 6 || date.getDay() === 0) return "fim-de-semana";
-            return "proximos";
+            if (diff <= 6) return "d:" + date.getFullYear() + "-" + pad2(date.getMonth() + 1) + "-" + pad2(date.getDate());
+            return "depois";
+        }
+        function inDay(m, k) {
+            if (k === 'all') return true;
+            if (k === 'fim-de-semana') return m.diff >= 0 && m.diff <= 7 && (m.dow === 6 || m.dow === 0);
+            return m.dayId === k;
+        }
+        function dayTabLabel(k, m) {
+            if (k.startsWith('d:')) { const d = new Date(m.ts); return d.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').replace(/^./, c => c.toUpperCase()) + ' ' + pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1); }
+            return { all: 'Todos', hoje: 'Hoje', amanha: 'Amanhã', 'fim-de-semana': 'Fim de semana', depois: 'Depois' }[k];
         }
 
         function fmtWhen(date) {
@@ -483,7 +503,7 @@
             ['japan', 'Japão', '🇯🇵'], ['korea', 'Coreia do Sul', '🇰🇷'], ['australia', 'Austrália', '🇦🇺'], ['china', 'China', '🇨🇳'],
             ['sweden', 'Suécia', '🇸🇪'], ['norway', 'Noruega', '🇳🇴'], ['denmark', 'Dinamarca', '🇩🇰'], ['switzerland', 'Suíça', '🇨🇭'],
             ['austria', 'Áustria', '🇦🇹'], ['greece', 'Grécia', '🇬🇷'], ['russia', 'Rússia', '🇷🇺'], ['ireland', 'Irlanda', '🇮🇪'],
-            ['poland', 'Polônia', '🇵🇱'], ['saudi', 'Arábia Saudita', '🇸🇦']
+            ['poland', 'Polônia', '🇵🇱'], ['saudi', 'Arábia Saudita', '🇸🇦'], ['finland', 'Finlândia', '🇫🇮'], ['czech', 'Tchéquia', '🇨🇿'], ['concacaf', 'América do Norte', '🌎'], ['libertadores', 'América do Sul', '🌎'], ['sudamericana', 'América do Sul', '🌎'], ['peru', 'Peru', '🇵🇪'], ['uruguay', 'Uruguai', '🇺🇾'], ['paraguay', 'Paraguai', '🇵🇾'], ['ecuador', 'Equador', '🇪🇨'], ['venezuela', 'Venezuela', '🇻🇪'], ['bolivia', 'Bolívia', '🇧🇴'], ['romania', 'Romênia', '🇷🇴'], ['hungary', 'Hungria', '🇭🇺'], ['croatia', 'Croácia', '🇭🇷'], ['serbia', 'Sérvia', '🇷🇸'], ['ukraine', 'Ucrânia', '🇺🇦'], ['india', 'Índia', '🇮🇳'], ['egypt', 'Egito', '🇪🇬'], ['morocco', 'Marrocos', '🇲🇦'], ['africa', 'África', '🌍'], ['southafrica', 'África do Sul', '🇿🇦']
         ];
         const SPORT_FALLBACK = { futebol: ['Outros', '🌐'], basquete: ['Basquete', '🏀'], tenis: ['Tênis', '🎾'], mma: ['MMA', '🥊'] };
         function leagueCountry(key, grupo) {
@@ -502,7 +522,7 @@
         function buildMatchesData(events) {            // lista plana ordenada por horario; o agrupamento por pais/campeonato e feito ao desenhar
             return events.map(ev => {
                 const date = new Date(ev.commence);
-                const m = { id: ev.id, home: ev.home, away: ev.away, ts: date.getTime(), dayId: getDayId(date), when: fmtWhen(date), started: !!ev.started,
+                const m = { id: ev.id, home: ev.home, away: ev.away, ts: date.getTime(), dayId: getDayId(date), diff: dayDiff(date), dow: date.getDay(), when: fmtWhen(date), started: !!ev.started,
                             odds: ev.odds, league: ev.league, country: leagueCountry(ev.key, ev.grupo), sport: SPORT_LABEL[ev.grupo] || 'Futebol' };
                 MATCH_INDEX[m.id] = m; return m;
             }).sort((a, b) => a.ts - b.ts);
@@ -585,7 +605,7 @@
             const small = url.includes('://www.thesportsdb.com/') ? url + '/tiny' : url;
             return `<span ${a} class="w-6 h-6 shrink-0 flex items-center justify-center"><img src="${esc(small)}" data-o="${esc(url)}" data-n="${esc(name)}" referrerpolicy="no-referrer" decoding="async" loading="lazy" alt="" onerror="logoFail(this)" class="w-6 h-6 object-contain"></span>`;
         }
-        const OB_ON = 'bg-brand-blue', OB_OFF = 'bg-[#333333]';
+        const OB_ON = 'bg-brand-blue', OB_OFF = 'bg-[#16264A]';
         const fmtOdd = o => Number(o).toFixed(2).replace('.', ',');
         function oddButton(m, market) {
             const odd = m.odds[market];
@@ -618,18 +638,20 @@
                 const d = new Date(); if (k === 'amanha') d.setDate(d.getDate() + 1);
                 const w = d.toLocaleDateString('pt-BR', { weekday: 'long' }); return w.charAt(0).toUpperCase() + w.slice(1);
             }
+            if (k.startsWith('d:')) { const d = new Date(k.slice(2) + 'T12:00:00'); const w = d.toLocaleDateString('pt-BR', { weekday: 'long' }); return w.charAt(0).toUpperCase() + w.slice(1) + ' ' + pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1); }
             return DAY_TITLES[k] || 'Jogos';
         }
         function renderMatches(searchTerm) {
             const container = document.getElementById('matches-container'), q = (searchTerm || '').toLowerCase().trim();
-            const list = matchesData.filter(m => (currentDayFilter === 'all' || m.dayId === currentDayFilter) &&
-                (!q || (m.home + ' ' + m.away + ' ' + m.league + ' ' + m.country.name).toLowerCase().includes(q)));
+            const base = matchesData.filter(m => !q || (m.home + ' ' + m.away + ' ' + m.league + ' ' + m.country.name).toLowerCase().includes(q));
+            renderDayTabs(base);
+            const ofDay = base.filter(m => inDay(m, currentDayFilter));
+            const leaguesToday = new Map(); ofDay.forEach(m => leaguesToday.set(m.league, (leaguesToday.get(m.league) || 0) + 1));
+            if (currentLeague && !leaguesToday.has(currentLeague)) currentLeague = '';
+            renderLeagueChips(leaguesToday, ofDay.length);
+            const list = currentLeague ? ofDay.filter(m => m.league === currentLeague) : ofDay;
             document.getElementById('games-count').textContent = list.length;
             document.getElementById('day-heading').textContent = dayHeading(currentDayFilter);
-            if (!list.length) {
-                container.innerHTML = `<div class="text-center py-10 text-gray-400 text-xs font-semibold bg-white"><i class="fa-solid fa-futbol text-3xl mb-2 opacity-40"></i><p>Nenhum jogo encontrado.</p></div>`;
-                return;
-            }
             const groups = new Map();
             list.forEach(m => {
                 if (!groups.has(m.country.name)) groups.set(m.country.name, { c: m.country, leagues: new Map() });
@@ -638,22 +660,46 @@
                 g.leagues.get(m.league).push(m);
             });
             const order = [...groups.values()].sort((a, b) => (b.c.name === 'Brasil') - (a.c.name === 'Brasil'));
-            container.innerHTML = order.map(g => `<div class="blk"><div class="bg-brand-blue text-white px-2.5 py-1.5 flex items-center gap-2 text-[16px]"><span class="text-xl leading-none">${g.c.flag}</span><span>${esc(g.c.name)}</span></div>` +
+            let html = list.length ? order.map(g => `<div class="blk"><div class="country-h text-white px-3 py-2 flex items-center gap-2 text-[15px] font-bold"><span class="text-xl leading-none">${g.c.flag}</span><span>${esc(g.c.name)}</span></div>` +
                 [...g.leagues].map(([lg, ms]) => {
                     const hasX = ms.some(m => m.odds.X != null);
-                    return `<div class="flex items-center bg-[#d6d6d6] px-2.5 py-1.5"><span class="flex-1 min-w-0 truncate text-[15px] font-bold text-gray-800">${esc(lg)}</span>
-                        <span class="flex gap-1 shrink-0 text-[14px] text-gray-600 text-center"><span class="w-[46px]">Casa</span>${hasX ? '<span class="w-[46px]">Emp.</span>' : ''}<span class="w-[46px]">Fora</span></span></div>` +
+                    return `<div class="league-h flex items-center px-3 py-1.5"><span class="flex-1 min-w-0 truncate text-[14px] font-extrabold text-gray-800">${esc(lg)} <span class="text-gray-400 font-semibold">(${ms.length})</span></span>
+                        <span class="flex gap-1 shrink-0 text-[12px] font-semibold text-gray-500 text-center"><span class="w-[46px]">Casa</span>${hasX ? '<span class="w-[46px]">Emp.</span>' : ''}<span class="w-[46px]">Fora</span></span></div>` +
                         ms.map(m => matchRow(m, hasX)).join('');
-                }).join('') + `</div>`).join('');
+                }).join('') + `</div>`).join('')
+                : `<div class="text-center py-10 text-gray-400 text-xs font-semibold bg-white"><i class="fa-solid fa-futbol text-3xl mb-2 opacity-40"></i><p>Nenhum jogo encontrado${currentDayFilter !== 'all' ? ' neste dia' : ''}.</p></div>`;
+            // ligas da API que nao tem jogo neste dia: continuam na tela, com atalho para o proximo jogo delas
+            if (currentDayFilter !== 'all' && !currentLeague) {
+                const nxt = new Map();
+                base.filter(m => !inDay(m, currentDayFilter) && m.ts > Date.now() - 3 * 3600000).forEach(m => { if (!leaguesToday.has(m.league) && !nxt.has(m.league)) nxt.set(m.league, m); });
+                if (nxt.size) html += `<div class="bg-white px-3 pt-4 pb-3 border-t-4 border-[#EEF3FB]"><p class="text-[13px] font-extrabold text-gray-700">Outros campeonatos (${nxt.size})</p><p class="text-[11px] text-gray-500 font-medium mb-2">Sem jogos neste dia. Toque para ver o próximo jogo.</p>` +
+                    [...nxt].sort((a, b) => a[1].ts - b[1].ts).map(([lg, m]) => `<button onclick="goLeague(${JSON.stringify(lg).replace(/"/g, '&quot;')},'${m.dayId}')" class="w-full flex items-center gap-2 py-2 border-t border-gray-100 text-left active:bg-gray-50"><span class="text-lg leading-none">${m.country.flag}</span><span class="flex-1 min-w-0 truncate text-[13px] font-bold text-gray-800">${esc(lg)}</span><span class="text-[11px] font-semibold text-brand-blue shrink-0">${esc(m.when)} <i class="fa-solid fa-chevron-right text-[9px]"></i></span></button>`).join('') + `</div>`;
+            }
+            container.innerHTML = html;
         }
-
-        const TAB_ON = 'day-tab px-3 py-1.5 rounded-full whitespace-nowrap font-bold border bg-brand-blue text-white border-brand-blue';
-        const TAB_OFF = 'day-tab px-3 py-1.5 rounded-full whitespace-nowrap font-bold border bg-white text-gray-700 border-gray-300';
+        function renderDayTabs(base) {
+            const keys = ['all', 'hoje', 'amanha'], first = {};
+            base.forEach(m => { if (m.dayId.startsWith('d:') && !(m.dayId in first)) first[m.dayId] = m; });
+            keys.push(...Object.keys(first).sort(), 'fim-de-semana', 'depois');
+            document.getElementById('day-tabs').innerHTML = keys.map(k => {
+                const n = base.filter(m => inDay(m, k)).length, on = k === currentDayFilter;
+                return `<button onclick="filterByDay('${k}')" data-day="${k}" class="day-tab ${on ? 'on' : ''}">${dayTabLabel(k, first[k])}<span class="cnt">${n}</span></button>`;
+            }).join('');
+            const act = document.querySelector('#day-tabs .on'); if (act) act.scrollIntoView({ block: 'nearest', inline: 'center' });
+        }
+        function renderLeagueChips(map, total) {
+            const box = document.getElementById('league-chips');
+            if (map.size < 2) { box.innerHTML = ''; return; }
+            const chip = (name, n, on) => `<button onclick="setLeague(${JSON.stringify(name).replace(/"/g, '&quot;')})" class="lg-chip ${on ? 'on' : ''}">${esc(name || 'Todas as ligas')}<span class="cnt">${n}</span></button>`;
+            box.innerHTML = chip('', total, !currentLeague) + [...map].sort((a, b) => b[1] - a[1]).map(([lg, n]) => chip(lg, n, lg === currentLeague)).join('');
+        }
+        function setLeague(lg) { currentLeague = lg; renderMatches(document.getElementById('search-teams').value); }
+        function goLeague(lg, day) { currentDayFilter = day; currentLeague = lg; renderMatches(document.getElementById('search-teams').value); window.scrollTo({ top: 0 }); }
         function filterByDay(dayKey) {
-            currentDayFilter = dayKey;
-            document.querySelectorAll('.day-tab').forEach(btn => { btn.className = btn.dataset.day === dayKey ? TAB_ON : TAB_OFF; });
+            currentDayFilter = dayKey; currentLeague = '';
             renderMatches(document.getElementById('search-teams').value);
         }
+
         function clearSearch() { const el = document.getElementById('search-teams'); el.value = ''; renderMatches(''); el.focus(); }
 
         function filterGames() {                       // espera o usuario parar de digitar antes de redesenhar
@@ -836,7 +882,7 @@
                 C.innerText = 'Gestão'; T.innerText = 'Relatórios / Bilhetes';
                 const r = await api('/relatorios'); if (!r.ok) { B.innerHTML = esc(r.msg); return; }
                 const open = DB.tickets.filter(t => t.status === 'aberto');
-                B.innerHTML = `<div class="space-y-2 text-xs font-medium text-gray-700">${row('Bilhetes vendidos hoje:', r.hoje)}${row('Total apostado:', money(r.bruto), 'text-emerald-600')}${row('Prêmios pagos:', money(r.premios), 'text-red-600')}${row('Bilhetes em aberto:', r.abertos)}${r.comissao != null ? row('Minha comissão:', money(r.comissao), 'text-blue-600') : ''}</div>
+                B.innerHTML = `<div class="space-y-2 text-xs font-medium text-gray-700">${row('Bilhetes vendidos hoje:', r.hoje)}${row('Total apostado:', money(r.bruto), 'text-emerald-600')}${row('Prêmios pagos:', money(r.premios), 'text-red-600')}${row('Bilhetes em aberto:', r.abertos)}${r.comissao != null ? row('Minha comissão (' + (r.comissaoPct || 10) + '%):', money(r.comissao), 'text-blue-600') : ''}</div>
                     <p class="text-xs font-extrabold uppercase pt-2">Bilhetes em aberto</p>${open.length ? open.map(t => ticketHtml(t, true)).join('') : '<p class="text-xs text-gray-400 text-center py-3">Nenhum bilhete em aberto.</p>'}`;
             } else if (v === 'bilhetes') {
                 C.innerText = 'Apostas'; T.innerText = 'Meus Bilhetes';
@@ -1076,6 +1122,9 @@
                 cards[2].textContent = money(saidas);
                 cards[3].textContent = money(entradas - saidas);
                 cards[4].textContent = money(DB.comissao || 0);
+                cards[4].parentElement.classList.toggle('hidden', u.role !== 'cambista');          // comissao so existe para cambista
+                const ci = document.getElementById('caixa-com-info');
+                if (ci) ci.textContent = u.role === 'cambista' ? `${DB.comissaoPct || 10}% sobre ${money((DB.vendas || {})[u.id] || 0)} apostados pelos seus clientes` : '';
                 cards[5].textContent = u.role === 'admin' ? 'Ilimitado' : money(u.saldo);
             }
             const box = document.getElementById('tabela-lancamentos');
@@ -1125,7 +1174,8 @@
             const empty = t => `<p class="text-center text-xs text-gray-400 font-semibold py-3">${t}</p>`;
             const accRow = c => `<div class="flex justify-between items-center py-2 border-t border-gray-100 first:border-t-0 text-xs">
                 <div><p class="font-bold text-gray-800">${esc(c.nome)} <span class="text-gray-400 font-semibold">@${esc(c.login)}</span>${c.ativo ? '' : ' <span class="text-red-600">(bloqueado)</span>'}</p>
-                <p class="text-[10px] text-gray-500">Saldo: <b>${money(c.saldo)}</b>${c.role === 'cambista' ? ' • ' + DB.users.filter(x => x.criadoPor === c.id).length + ' usuários' : ''}</p></div>
+                <p class="text-[10px] text-gray-500">Saldo: <b>${money(c.saldo)}</b>${c.role === 'cambista' ? ' • ' + DB.users.filter(x => x.criadoPor === c.id).length + ' usuários' : ''}</p>
+                ${c.role === 'cambista' && DB.vendas ? `<p class="text-[10px] text-gray-500">Apostado: <b>${money(DB.vendas[c.id] || 0)}</b> • Comissão ${DB.comissaoPct || 10}%: <b class="text-emerald-600">${money(round2((DB.vendas[c.id] || 0) * (DB.comissaoPct || 10) / 100))}</b></p>` : ''}</div>
                 <div class="flex gap-1">${(c.role === 'cambista' && c.ativo) ? `<button onclick="quickPick('ab-cambista','${c.id}','ab-valor')" class="text-[10px] font-black uppercase px-2 py-1 rounded bg-emerald-600 text-white">+ Saldo</button>` : ''}<button onclick="toggleAtivo('${c.id}')" class="text-[10px] font-black uppercase px-2 py-1 rounded ${c.ativo ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}">${c.ativo ? 'Bloquear' : 'Ativar'}</button></div></div>`;
 
             let html = `<div class="flex items-center justify-between mb-1">
@@ -1162,6 +1212,11 @@
                 html += `<div class="bg-brand-navy text-white rounded-sm p-3 text-center shadow-md">
                     <span class="text-[11px] font-semibold text-gray-400 block">Seu saldo para recargas</span>
                     <span class="text-2xl font-black text-yellow-400">${money(u.saldo)}</span></div>`;
+                const vend = (DB.vendas || {})[u.id] || 0;
+                html += `<div class="com-card text-white rounded-sm p-3 shadow-md flex items-center justify-between">
+                    <div><span class="text-[11px] font-semibold text-blue-200 block">Minha comissão (${DB.comissaoPct || 10}%)</span>
+                    <span class="text-2xl font-black text-emerald-300">${money(DB.comissao || 0)}</span></div>
+                    <div class="text-right"><span class="text-[11px] font-semibold text-blue-200 block">Apostado pelos clientes</span><span class="text-base font-extrabold">${money(vend)}</span></div></div>`;
                 html += `<button onclick="navigateTo('futebol')" class="${B}"><i class="fa-solid fa-ticket mr-1"></i> Fazer bilhete para um cliente</button>`;
                 html += card('Adicionar Saldo ao Usuário', users.some(x => x.ativo) ? `
                     <select id="cb-usuario" class="${I}">${opts}</select>
