@@ -101,7 +101,7 @@ def init_db():
     c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS credito BIGINT NOT NULL DEFAULT 0")   # fiado: total de credito dado ao cliente e ainda nao acertado
     c.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS feito_por INTEGER")                    # cambista que vendeu o bilhete (o valor sai do saldo DELE)
     if not c.execute("SELECT 1 FROM kv WHERE k='mig:caixa1'").fetchone():                         # 1x: "Limite (fiado)" antigo nunca saiu do saldo do cambista; some das saidas dele
-        c.execute("UPDATE transactions SET de=NULL WHERE descr LIKE 'Limite (fiado)%'"); c.execute("INSERT INTO kv(k,ts,v) VALUES('mig:caixa1',0,'1')")
+        c.execute("UPDATE transactions SET de=NULL WHERE LEFT(descr, 14)='Limite (fiado)'"); c.execute("INSERT INTO kv(k,ts,v) VALUES('mig:caixa1',0,'1')")
     if not c.execute("SELECT 1 FROM kv WHERE k='mig:credito1'").fetchone():                       # 1x: o saldo que os clientes ja tem vira credito (fiado) deles
         c.execute("UPDATE users SET credito=saldo WHERE role='usuario'"); c.execute("INSERT INTO kv(k,ts,v) VALUES('mig:credito1',0,'1')")
     c.execute("INSERT INTO users(nome,login,pw,role,senha_padrao,criado_em) SELECT 'Administrador','admin',?,'admin',1,? "
