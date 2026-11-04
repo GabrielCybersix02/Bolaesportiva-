@@ -2,7 +2,7 @@
 import os, re, json, time, queue, threading, secrets, unicodedata
 from concurrent.futures import ThreadPoolExecutor
 import psycopg2, psycopg2.extras
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import requests
 from flask import Flask, g, jsonify, has_request_context, request, session, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -360,10 +360,113 @@ def odds_loop():
                 if time.time() - _seen.get(g_, 0) > IDLE_H * 3600: continue
                 if time.time() - cached(g_)[0] >= CACHE_MIN * 60: bg_refresh(g_)
             except Exception: pass
+# ---------------------------------------------------------------- OddsPapi (fonte extra de jogos de futebol)
+# A chave vem SEMPRE da variavel ODDSPAPI_KEY (nunca no codigo). Plano gratis = 250 requisicoes/mes: o codigo conta cada chamada,
+# guarda o total no banco e se recusa a passar do limite. Os jogos ficam em cache e sao renovados no maximo a cada ODDSPAPI_REFRESH_HOURS.
+OP_KEY = os.environ.get("ODDSPAPI_KEY", "").strip().strip("\"'").strip()
+OP_BASE = "https://api.oddspapi.io/v4"
+OP_BOOKS = [b.strip() for b in os.environ.get("ODDSPAPI_BOOKMAKERS", "pinnacle").split(",") if b.strip()][:3]
+OP_HOURS = float(os.environ.get("ODDSPAPI_REFRESH_HOURS", "24"))
+OP_DAYS = max(1, min(9, int(os.environ.get("ODDSPAPI_DAYS", "3"))))
+OP_LIMIT = int(os.environ.get("ODDSPAPI_MONTHLY_LIMIT", "250"))
+OP_RESERVE = int(os.environ.get("ODDSPAPI_RESERVE", "60"))         # sobra para liquidar bilhetes (settlements)
+_op = {"ts": 0, "ev": None, "err": "", "fail": 0, "busy": False, "n": None, "month": "", "merged": (None, None, [])}
+_op_lock, _op_last, _op_start = threading.Lock(), [0.0], threading.Lock()
+def _op_month(): return time.strftime("%Y-%m", time.gmtime())
+def op_used():
+    m = _op_month()
+    if _op["n"] is None or _op["month"] != m:
+        try: _op["n"] = int(kv_get("op:usage:" + m)[1] or 0)
+        except Exception: _op["n"] = 0
+        _op["month"] = m
+    return _op["n"]
+def _op_bump():
+    op_used(); _op["n"] += 1
+    try: kv_set("op:usage:" + _op["month"], _op["n"])
+    except Exception: pass
+def op_get(path, reserve=0, **params):
+    if not OP_KEY: raise RuntimeError("ODDSPAPI_KEY não definida.")
+    with _op_lock:
+        if op_used() >= OP_LIMIT - reserve: raise RuntimeError("Cota mensal da OddsPapi no limite (proteção ativa).")
+        w = 2.1 - (time.time() - _op_last[0])                       # a API exige ~2s entre chamadas do mesmo endpoint
+        if w > 0: time.sleep(w)
+        _op_bump()
+        try: r = requests.get(OP_BASE + path, params={**params, "apiKey": OP_KEY}, headers=UA, timeout=60)
+        except Exception as e: raise RuntimeError(("OddsPapi fora do ar: " + str(e))[:150].replace(OP_KEY, "***"))
+        finally: _op_last[0] = time.time()
+    if not r.ok: raise RuntimeError(f"OddsPapi {r.status_code}: {r.text[:150]}".replace(OP_KEY, "***"))
+    return r.json()
+def _op_prices(fx):
+    for b in OP_BOOKS:
+        mk = (((fx.get("bookmakerOdds") or {}).get(b) or {}).get("markets") or {}).get("101")      # mercado 101 = 1X2 tempo normal
+        if not mk: continue
+        o = mk.get("outcomes") or {}
+        def pr(i):
+            p = ((o.get(i) or {}).get("players") or {}).get("0") or {}
+            v = p.get("price")
+            return v if p.get("active", True) and isinstance(v, (int, float)) and v > 1 else None
+        h, d, a = pr("101"), pr("102"), pr("103")
+        if h and a: return {"1": h, "X": d, "2": a}
+    return None
+def op_refresh():
+    t0 = datetime.now(timezone.utc); iso = lambda d: d.strftime("%Y-%m-%dT%H:%M:%SZ")
+    fx = op_get("/fixtures", reserve=OP_RESERVE, sportId=10, statusId=0, hasOdds="true", bookmakers=",".join(OP_BOOKS),
+                **{"from": iso(t0), "to": iso(t0 + timedelta(days=OP_DAYS))})
+    fx = [f for f in fx if isinstance(f, dict) and f.get("fixtureId") and f.get("participant1Name") and f.get("participant2Name") and f.get("startTime")] if isinstance(fx, list) else []
+    cnt = {}
+    for f in fx: cnt[f.get("tournamentId")] = cnt.get(f.get("tournamentId"), 0) + 1
+    tids = sorted(cnt, key=lambda k: -cnt[k]); batches = [tids[i:i + 20] for i in range(0, len(tids), 20)]
+    batches = batches[:max(0, OP_LIMIT - OP_RESERVE - op_used())]    # nunca estoura a cota: o que nao couber espera o proximo ciclo
+    prices = {}
+    for b in batches:
+        data = op_get("/odds-by-tournaments", reserve=OP_RESERVE, tournamentIds=",".join(map(str, b)), bookmakers=",".join(OP_BOOKS))
+        for f in (data if isinstance(data, list) else []):
+            pz = _op_prices(f) if isinstance(f, dict) else None
+            if pz: prices[f.get("fixtureId")] = pz
+    out = [dict(id="op:" + f["fixtureId"], home=f["participant1Name"], away=f["participant2Name"], commence=f["startTime"],
+                league=f.get("tournamentName") or "Outros", key="op_%s_%s" % (f.get("categorySlug", ""), f.get("tournamentSlug", "")),
+                grupo="futebol", odds=prices[f["fixtureId"]]) for f in fx if f["fixtureId"] in prices]
+    if not out: raise RuntimeError("OddsPapi não trouxe jogos com odds (confira o bookmaker em ODDSPAPI_BOOKMAKERS).")
+    _op.update(ts=time.time(), ev=out, err="")
+    try: kv_set("odds:op", out)
+    except Exception as e: print("kv_set odds:op falhou:", e, flush=True)
+    print(f"oddspapi: {len(out)} jogos de {len(batches)} lotes (uso do mes: {op_used()}/{OP_LIMIT}).", flush=True)
+def _op_bg():
+    try: op_refresh()
+    except Exception as e: _op["err"] = str(e)[:200]; _op["fail"] = time.time(); print("oddspapi falhou:", e, flush=True)
+    finally: _op["busy"] = False; _op_start.release()
+def op_kick(force=False):
+    """Carrega o cache salvo e, se estiver velho, renova por tras (no maximo 1x a cada ODDSPAPI_REFRESH_HOURS)."""
+    if not OP_KEY: return
+    if _op["ev"] is None:
+        ts, v = kv_get("odds:op"); _op["ts"], _op["ev"] = ts or 0, v or []
+    if (force or time.time() - _op["ts"] >= OP_HOURS * 3600) and (force or time.time() - _op["fail"] > 1800) and _op_start.acquire(blocking=False):
+        _op["busy"] = True; threading.Thread(target=_op_bg, daemon=True).start()
+def _same(a, b): return bool(a) and bool(b) and (a == b or (min(len(a), len(b)) >= 5 and (a in b or b in a)))
+def merge_op(ev):
+    """Junta os jogos da OddsPapi aos da The Odds API sem duplicar (mesmos times e horario parecido: vale o da The Odds API)."""
+    op = _op["ev"] or []
+    if not op: return ev
+    sig = (id(ev), _op["ts"])
+    if _op["merged"][0] == sig[0] and _op["merged"][1] == sig[1]: return _op["merged"][2]
+    buckets = {}
+    for e in ev:
+        t = _ts(e["commence"]); buckets.setdefault(int(t // 14400), []).append((norm(e["home"]), norm(e["away"]), t))
+    extra = []
+    for e in op:
+        t = _ts(e["commence"]); h, a = norm(e["home"]), norm(e["away"]); b = int(t // 14400)
+        if any(abs(t - t2) <= 14400 and _same(h, h2) and _same(a, a2) for bb in (b - 1, b, b + 1) for h2, a2, t2 in buckets.get(bb, [])): continue
+        extra.append(e)
+    out = ev + extra; _op["merged"] = (sig[0], sig[1], out); return out
 def find_event(eid):
     for g_ in GROUPS:
         for e in cached(g_)[1] or []:
             if e["id"] == eid: return e
+    if str(eid).startswith("op:"):
+        if _op["ev"] is None: op_kick()
+        for e in _op["ev"] or []:
+            if e["id"] == eid: return e
+MAXDUR = {"futebol": 2.5 * 3600, "basquete": 3.5 * 3600, "tenis": 5 * 3600, "mma": 6 * 3600}   # depois disso o jogo ja acabou: sai da lista
 @app.get("/api/odds")
 @need()
 def odds(u):
@@ -371,10 +474,18 @@ def odds(u):
     if grupo != "aovivo" and grupo not in GROUPS: return err("Esporte inválido.")
     base = "futebol" if grupo == "aovivo" else grupo
     try: ev, ts = get_group(base, force)
-    except Exception as e: return jsonify(ok=False, msg=str(e)), 502
-    t = time.time(); out = []
+    except Exception as e:
+        if base == "futebol" and OP_KEY:                                       # The Odds API falhou/sem credito: a OddsPapi segura o site
+            op_kick(); ev, ts = [], _op["ts"] or time.time()
+            if not _op["ev"]: return jsonify(ok=False, msg=str(e)), 502
+        else: return jsonify(ok=False, msg=str(e)), 502
+    if base == "futebol" and OP_KEY: op_kick(); ev = merge_op(ev)
+    t = time.time(); out = []; dur = MAXDUR.get(base, 3 * 3600)
     for e in ev:
         st = _ts(e["commence"])
+        if t - st > dur: continue                                              # jogo ja terminou (a API de odds as vezes demora a tirar)
+        lv = (_live.get(e.get("key")) or (0, {}))[1].get(e["id"])
+        if lv and lv.get("completed"): continue                                # placar diz que acabou
         if grupo == "aovivo" and not (-3600 < t - st < 3 * 3600): continue      # comecou ha <3h ou comeca em <1h
         out.append({**e, "started": st <= t})                                    # copia: nao suja o cache
     return jsonify(ok=True, events=out, updated=ts, logos=logo_map({n for e in out for n in (e["home"], e["away"])}, base)[0])
@@ -677,12 +788,13 @@ _live = {}
 def _ts(iso): return datetime.fromisoformat(iso.replace("Z", "+00:00")).timestamp()
 def live_for_key(key):
     ts, data = _live.get(key, (0, {}))
+    if key.startswith("op_"): return {}                  # liga da OddsPapi: sem placar na The Odds API
     if time.time() - ts < LIVE_TTL: return data
     def num(v):
         try: return int(float(v))
         except Exception: return None
     try:
-        r = requests.get(f"{ODDS_BASE}/sports/{key}/scores/", params={"apiKey": ODDS_KEY, "daysFrom": 1}, timeout=15); r.raise_for_status()
+        r = requests.get(f"{ODDS_BASE}/sports/{key}/scores/", params={"apiKey": ODDS_KEY, "daysFrom": 3}, timeout=15); r.raise_for_status()
         out = {}
         for e in r.json():
             sc = {x["name"]: x["score"] for x in (e.get("scores") or [])}
@@ -697,10 +809,91 @@ def live(u):
     sql = "SELECT selecoes FROM tickets WHERE status='aberto'" + ("" if ids is None else f" AND user_id IN ({','.join('?'*len(ids))})")
     for r in c.execute(sql, tuple(ids or ())):
         for s_ in json.loads(r["selecoes"]):
-            if s_.get("key") and s_.get("commence") and 0 <= t - _ts(s_["commence"]) < 6 * 3600: keys.add(s_["key"]); want.add(s_["id"])
+            if s_.get("key") and not s_["key"].startswith("op_") and s_.get("commence") and 0 <= t - _ts(s_["commence"]) < 6 * 3600: keys.add(s_["key"]); want.add(s_["id"])
     out = {}
     for k in keys: out.update({i: v for i, v in live_for_key(k).items() if i in want})
     return jsonify(ok=True, live=out)
+
+# ---------------------------------------------------------------- liquidacao automatica dos bilhetes
+AUTO_SETTLE = os.environ.get("AUTO_SETTLE", "1") == "1"            # AUTO_SETTLE=0 desliga (volta a ser so manual)
+_op_res, _op_try = {}, {}
+OUT_ID = {"1": "101", "X": "102", "2": "103"}
+def op_result(fid):
+    """Resultado do jogo da OddsPapi (1 chamada /settlements por jogo; guardado no banco, nao repete)."""
+    if fid in _op_res: return _op_res[fid]
+    v = kv_get("op:res:" + fid)[1]
+    if v: _op_res[fid] = v; return v
+    if time.time() - _op_try.get(fid, 0) < 1200: return None
+    _op_try[fid] = time.time()
+    try: d = op_get("/settlements", fixtureId=fid)
+    except Exception as e: print("settlements falhou:", e, flush=True); return None
+    m = (((d or {}).get("markets") or {}).get("101") or {}).get("outcomes") or {} if isinstance(d, dict) else {}
+    res = {k: ((((m.get(o) or {}).get("players") or {}).get("0")) or {}).get("result") for k, o in OUT_ID.items()}
+    if "WIN" in res.values() and all(r in ("WIN", "LOSE") for r in res.values() if r):
+        _op_res[fid] = res
+        try: kv_set("op:res:" + fid, res)
+        except Exception: pass
+        return res
+    return None
+def sel_verdict(s_):
+    """'won' | 'lost' | None (ainda sem resultado confiavel). So decide com jogo encerrado de verdade."""
+    if not s_.get("commence") or time.time() - _ts(s_["commence"]) < 100 * 60: return None
+    mk, sid, key = s_.get("mercado"), str(s_.get("id", "")), str(s_.get("key", ""))
+    if sid.startswith("op:"):
+        r = (op_result(sid[3:]) or {}).get(mk)
+        return {"WIN": "won", "LOSE": "lost"}.get(r)
+    if not key.startswith(("soccer_", "basketball_")): return None      # tenis/MMA continuam manuais
+    lv = live_for_key(key).get(sid)
+    if not lv or not lv.get("completed") or lv.get("home") is None or lv.get("away") is None: return None
+    out = "1" if lv["home"] > lv["away"] else "2" if lv["away"] > lv["home"] else "X"
+    return "won" if out == mk else "lost"
+def settle_tx(c, tid, res, auto=False):
+    c.execute("BEGIN")
+    try:
+        t = c.execute("SELECT * FROM tickets WHERE id=? AND status='aberto' FOR UPDATE", (tid,)).fetchone()
+        if not t: c.execute("ROLLBACK"); return False
+        c.execute("UPDATE tickets SET status=? WHERE id=?", (res, tid)); suf = " (automático)" if auto else ""
+        if res == "ganhou":
+            c.execute("UPDATE users SET saldo=saldo+? WHERE id=?", (t["retorno"], t["user_id"])); tx(c, "premio", None, t["user_id"], t["retorno"], f"Prêmio bilhete #{tid}{suf}")
+        elif res == "cancelado":
+            c.execute("UPDATE users SET saldo=saldo+? WHERE id=?", (t["valor"], t["user_id"])); tx(c, "estorno", None, t["user_id"], t["valor"], f"Estorno bilhete #{tid}{suf}")
+        c.execute("COMMIT"); return True
+    except Exception:
+        c.execute("ROLLBACK"); raise
+def auto_settle_once():
+    c = raw()
+    try:
+        for r in c.execute("SELECT id, selecoes FROM tickets WHERE status='aberto' ORDER BY id").fetchall():
+            lost, allwon = False, True
+            for s_ in json.loads(r["selecoes"]):
+                v = sel_verdict(s_)
+                if v == "lost": lost = True; break              # uma selecao perdida ja decide o bilhete
+                if v != "won": allwon = False
+            res = "perdeu" if lost else "ganhou" if allwon else None
+            if res and settle_tx(c, r["id"], res, True): print(f"bilhete #{r['id']} liquidado automaticamente: {res}", flush=True)
+    finally: c.close()
+def settle_loop():
+    time.sleep(25)
+    while True:
+        try: auto_settle_once()
+        except Exception as e: print("auto_settle falhou:", e, flush=True)
+        time.sleep(120)
+if AUTO_SETTLE: threading.Thread(target=settle_loop, daemon=True).start()
+
+@app.get("/api/admin/oddspapi")
+@need("admin")
+def op_diag(u):
+    """Diagnostico: /api/admin/oddspapi  (status)  •  ?run=1 (forca atualizar agora)  •  ?conta=1 (consulta a conta; nao gasta cota)."""
+    if not OP_KEY: return err("Defina ODDSPAPI_KEY no Render.")
+    if request.args.get("run") == "1": op_kick(force=True)
+    elif _op["ev"] is None: op_kick()
+    out = dict(chave_definida=True, jogos=len(_op["ev"] or []), atualizado_ha_min=round((time.time() - _op["ts"]) / 60) if _op["ts"] else None, atualizando=_op["busy"],
+               uso_no_mes=op_used(), limite=OP_LIMIT, reserva=OP_RESERVE, bookmakers=OP_BOOKS, dias=OP_DAYS, renova_a_cada_horas=OP_HOURS, ultimo_erro=_op["err"], auto_liquidacao=AUTO_SETTLE)
+    if request.args.get("conta") == "1":
+        def sc(x): return {k: sc(v) for k, v in x.items() if isinstance(v, (dict, int, float, bool)) or k in ("plan", "planName")} if isinstance(x, dict) else x
+        try: out["conta"] = sc(requests.get(OP_BASE + "/account", params={"apiKey": OP_KEY}, headers=UA, timeout=20).json())
+        except Exception as e: out["conta"] = "falhou: " + str(e).replace(OP_KEY, "***")[:120]
+    return jsonify(ok=True, **out)
 
 # ---------------------------------------------------------------- extras
 @app.post("/api/admin/seed")
