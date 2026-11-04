@@ -294,11 +294,6 @@
                         <span class="text-xl font-extrabold text-brand-textDark block mt-0.5">R$ 0,00</span>
                     </div>
                     <div class="bg-brand-cardBg p-2.5 rounded-sm text-center border border-gray-200">
-                        <span class="text-xs font-semibold text-gray-700 block">Comissões</span>
-                        <span class="text-xl font-extrabold text-brand-textDark block mt-0.5">R$ 0,00</span>
-                        <span id="caixa-com-info" class="block text-[11px] text-gray-500 font-semibold mt-0.5"></span>
-                    </div>
-                    <div class="bg-brand-cardBg p-2.5 rounded-sm text-center border border-gray-200">
                         <span class="text-xs font-semibold text-gray-700 block">Total</span>
                         <span class="text-xl font-extrabold text-brand-textDark block mt-0.5">R$0,00</span>
                     </div>
@@ -378,6 +373,12 @@
                 <button onclick="navigateTo('relatorios'); toggleSideMenu();" data-roles="admin,cambista" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
                     <i class="fa-solid fa-chart-line text-brand-blue w-5"></i> Relatórios
                 </button>
+                <button onclick="navigateTo('comissao'); toggleSideMenu();" data-roles="cambista" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
+                    <i class="fa-solid fa-sack-dollar text-brand-blue w-5"></i> Minha Comissão
+                </button>
+                <button onclick="navigateTo('comissao'); toggleSideMenu();" data-roles="admin" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
+                    <i class="fa-solid fa-sack-dollar text-brand-blue w-5"></i> Comissões dos Cambistas
+                </button>
                 <button onclick="openModal('regulamento'); toggleSideMenu();" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
                     <i class="fa-solid fa-file-contract text-brand-blue w-5"></i> Regulamento
                 </button>
@@ -438,7 +439,7 @@
                         <i class="fa-solid fa-xmark text-lg"></i>
                     </button>
                 </div>
-                <div id="modal-body" class="p-4 space-y-3">
+                <div id="modal-body" class="p-4 space-y-3 max-h-[75vh] overflow-y-auto">
                     <!-- Modal Content -->
                 </div>
             </div>
@@ -515,7 +516,7 @@
 
         let currentSport = 'futebol', LOGOS = {};
         try { LOGOS = JSON.parse(localStorage.getItem('bola_logos') || '{}') || {}; } catch (e) { LOGOS = {}; }   // logos ja conhecidas: aparecem na hora
-        const SPORT_CACHE = {}, INFLIGHT = {};
+        const SPORT_CACHE = {}, INFLIGHT = {}; let opRetry = 0;
         let logoRun = 0, saveLogosTimer = null, STATE_AT = 0, filterTimer = null;
         function saveLogos() { clearTimeout(saveLogosTimer); saveLogosTimer = setTimeout(() => { try { localStorage.setItem('bola_logos', JSON.stringify(LOGOS)); } catch (e) {} }, 800); }
         const MATCH_INDEX = {}, SPORT_LABEL = { futebol: 'Futebol', basquete: 'Basquete', tenis: 'Tênis', mma: 'MMA' };
@@ -537,7 +538,10 @@
             const k = sport + (force ? '!' : '');
             if (INFLIGHT[k]) return INFLIGHT[k];
             INFLIGHT[k] = api('/odds?grupo=' + sport + (force ? '&force=1' : '')).then(r => {
-                if (r.ok) { Object.assign(LOGOS, r.logos || {}); saveLogos(); SPORT_CACHE[sport] = { r, data: buildMatchesData(r.events), at: Date.now() }; }
+                if (r.ok) { Object.assign(LOGOS, r.logos || {}); saveLogos(); SPORT_CACHE[sport] = { r, data: buildMatchesData(r.events), at: Date.now() };
+                    if (r.op && r.op.busy && opRetry < 4) {            // a OddsPapi esta buscando mais jogos: confere de novo em 20s
+                        opRetry++; setTimeout(() => fetchOdds(sport, false).then(() => { if (sport === currentSport && !document.getElementById('view-futebol').classList.contains('hidden')) showSport(sport); }), 20000);
+                    } else if (!(r.op && r.op.busy)) opRetry = 0; }
                 return r;
             }).finally(() => { delete INFLIGHT[k]; });
             return INFLIGHT[k];
@@ -646,6 +650,7 @@
             const container = document.getElementById('matches-container'), q = (searchTerm || '').toLowerCase().trim();
             const base = matchesData.filter(m => !q || (m.home + ' ' + m.away + ' ' + m.league + ' ' + m.country.name).toLowerCase().includes(q));
             renderDayTabs(base);
+            if (currentDayFilter !== 'all' && !document.querySelector('#day-tabs [data-day="' + currentDayFilter + '"]')) { currentDayFilter = 'all'; renderDayTabs(base); }
             const ofDay = base.filter(m => inDay(m, currentDayFilter));
             const leaguesToday = new Map(); ofDay.forEach(m => leaguesToday.set(m.league, (leaguesToday.get(m.league) || 0) + 1));
             if (currentLeague && !leaguesToday.has(currentLeague)) currentLeague = '';
@@ -879,11 +884,19 @@
         async function renderGeneric(v) {
             const T = document.getElementById('generic-title'), C = document.getElementById('generic-category'), B = document.getElementById('generic-content');
             const u = me(); const row = (a, b, cls) => `<div class="flex justify-between border-b pb-2"><span>${a}</span><span class="font-bold ${cls || ''}">${b}</span></div>`;
+            const same = B.dataset.v === v; B.dataset.v = v;
+            if (v === 'comissao') {
+                const adm = u.role === 'admin';
+                C.innerText = 'Financeiro'; T.innerText = adm ? 'Comissões dos Cambistas' : 'Minha Comissão';
+                if (!same) B.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">Carregando...</p>';
+                const r = await api('/comissoes'); if (!r.ok) { B.innerHTML = '<p class="text-xs text-red-600 font-semibold">' + esc(r.msg || 'Erro ao carregar.') + '</p>'; return; }
+                B.innerHTML = comissaoHtml(r, adm); return;
+            }
             if (v === 'relatorios') {
                 C.innerText = 'Gestão'; T.innerText = 'Relatórios / Bilhetes';
                 const r = await api('/relatorios'); if (!r.ok) { B.innerHTML = esc(r.msg); return; }
                 const open = DB.tickets.filter(t => t.status === 'aberto');
-                B.innerHTML = `<div class="space-y-2 text-xs font-medium text-gray-700">${row('Bilhetes vendidos hoje:', r.hoje)}${row('Total apostado:', money(r.bruto), 'text-emerald-600')}${row('Prêmios pagos:', money(r.premios), 'text-red-600')}${row('Bilhetes em aberto:', r.abertos)}${r.comissao != null ? row('Minha comissão (' + (r.comissaoPct || 10) + '%):', money(r.comissao), 'text-blue-600') : ''}</div>
+                B.innerHTML = `<div class="space-y-2 text-xs font-medium text-gray-700">${row('Bilhetes vendidos hoje:', r.hoje)}${row('Total apostado:', money(r.bruto), 'text-emerald-600')}${row('Prêmios pagos:', money(r.premios), 'text-red-600')}${row('Bilhetes em aberto:', r.abertos)}</div>
                     <p class="text-xs font-extrabold uppercase pt-2">Bilhetes em aberto</p>${open.length ? open.map(t => ticketHtml(t, true)).join('') : '<p class="text-xs text-gray-400 text-center py-3">Nenhum bilhete em aberto.</p>'}`;
             } else if (v === 'bilhetes') {
                 C.innerText = 'Apostas'; T.innerText = 'Meus Bilhetes';
@@ -898,6 +911,33 @@
                     <p class="text-sm font-black text-brand-blue text-right">Odd total ${odd.toFixed(2)}</p>
                     <button onclick='addCombo(${JSON.stringify(fav.map(f => [f.m.id, f.m.home + " x " + f.m.away, f.k, f.o]))})' class="w-full bg-brand-blue text-white py-2 rounded font-extrabold text-xs uppercase">Adicionar ao bilhete</button>` : '<p class="text-xs text-gray-400 text-center">Sem jogos disponíveis agora.</p>';
             }
+        }
+        const sCard = (l, v) => `<div class="bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-center"><span class="text-[11px] text-gray-500 font-semibold block">${l}</span><b class="text-sm text-gray-900">${v}</b></div>`;
+        const sTitle = t => `<p class="text-xs font-extrabold uppercase text-gray-700 pt-2">${t}</p>`;
+        function comissaoHtml(r, adm) {
+            let h = `<div class="com-card text-white rounded-xl p-4 text-center shadow-md"><span class="text-[11px] font-semibold text-blue-200 block">${adm ? 'Comissão total dos cambistas' : 'Comissão acumulada'}</span><span class="text-3xl font-black text-emerald-300">${money(r.comissao)}</span></div>
+                <div class="grid grid-cols-2 gap-2">${sCard('Entrada em jogos', money(r.apostado))}${sCard(adm ? 'Cambistas' : 'Bilhetes', adm ? r.cambistas.length : r.bilhetes)}</div>
+                <p class="text-[11px] text-gray-500 font-medium text-center">${r.pct}% de tudo que os clientes apostam. Bilhetes anulados não entram na conta.</p>`;
+            if (adm) {
+                h += sTitle('Cambistas') + (r.cambistas.length ? r.cambistas.map(c => `<button onclick="showComCambista('${c.id}')" class="w-full flex items-center justify-between gap-2 py-2.5 border-t border-gray-100 text-left active:bg-gray-50 text-xs">
+                    <span class="min-w-0"><b class="text-gray-800 block truncate">${esc(c.nome)}${c.ativo ? '' : ' <span class="text-red-600 font-semibold">(bloqueado)</span>'}</b><span class="text-[11px] text-gray-500">${c.clientes} clientes • ${c.bilhetes} bilhetes • apostado ${money(c.apostado)}</span></span>
+                    <span class="shrink-0 text-right"><b class="text-emerald-600 text-sm block">${money(c.comissao)}</b><i class="fa-solid fa-chevron-right text-[9px] text-gray-400"></i></span></button>`).join('') : '<p class="text-xs text-gray-400 text-center py-3">Nenhum cambista cadastrado.</p>');
+                return h;
+            }
+            return h + comissaoDetalhe(r);
+        }
+        function comissaoDetalhe(r) {
+            const st = t => `<span class="text-[10px] font-black px-1.5 py-0.5 rounded ${(ST[t] || ST.aberto)[1]}">${(ST[t] || ST.aberto)[0]}</span>`;
+            return sTitle('Por cliente') + (r.clientes.length ? r.clientes.map(c => `<div class="flex items-center justify-between py-2 border-t border-gray-100 text-xs"><span class="min-w-0"><b class="text-gray-800 block truncate">${esc(c.nome)}</b><span class="text-[11px] text-gray-500">${c.bilhetes} bilhetes • apostado ${money(c.apostado)}</span></span><b class="text-emerald-600 shrink-0">${money(c.comissao)}</b></div>`).join('') : '<p class="text-xs text-gray-400 text-center py-3">Ainda não há apostas dos clientes.</p>')
+                + (r.recentes.length ? sTitle('Últimos lançamentos') + r.recentes.map(t => `<div class="flex items-center justify-between gap-2 py-2 border-t border-gray-100 text-[11px]"><span class="min-w-0"><b class="text-gray-800 block truncate">#${t.id} • ${esc(t.cliente)}</b><span class="text-gray-500">${new Date(t.data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} • ${money(t.valor)} ${st(t.status)}</span></span><b class="text-emerald-600 shrink-0">+${money(t.comissao)}</b></div>`).join('') : '');
+        }
+        async function showComCambista(id) {
+            document.getElementById('modal-title').innerText = 'Comissão do cambista';
+            document.getElementById('modal-body').innerHTML = '<p class="text-xs text-gray-400 text-center py-4">Carregando...</p>';
+            document.getElementById('modal-container').classList.remove('hidden');
+            const r = await api('/comissoes?cambista=' + id); if (!r.ok) { document.getElementById('modal-body').innerHTML = '<p class="text-xs text-red-600">' + esc(r.msg || 'Erro.') + '</p>'; return; }
+            document.getElementById('modal-title').innerText = r.nome;
+            document.getElementById('modal-body').innerHTML = `<div class="grid grid-cols-2 gap-2">${sCard('Comissão', money(r.comissao))}${sCard('Entrada em jogos', money(r.apostado))}</div>` + comissaoDetalhe(r);
         }
         function addCombo(l) {
             if (!canBet(me())) { showToast('Somente usuários e cambistas podem apostar.', 'err'); return; }
@@ -925,6 +965,7 @@
         }
         async function pollLive() {
             if (!sessionId || document.hidden) return;
+            if (await loadState()) { refreshHome(); if (currentView === 'caixa') renderCaixa(); }      // saldo e bilhetes liquidados sozinhos aparecem sem recarregar
             const r = await api('/live'); if (!r.ok) return;
             const find = id => { for (const t of DB.tickets) { const s = t.selecoes.find(x => x.id === id); if (s) return s; } };
             Object.entries(r.live).forEach(([id, v]) => {
@@ -932,7 +973,7 @@
                 if (p && s && v.started && !v.completed && (p.home !== v.home || p.away !== v.away)) showToast(`⚽ GOL! ${s.home} ${v.home ?? 0} x ${v.away ?? 0} ${s.away}`, 'warn');
             });
             LIVE = r.live;
-            if (currentView === 'bilhetes' || currentView === 'relatorios') renderGeneric(currentView);
+            if (currentView === 'bilhetes' || currentView === 'relatorios' || currentView === 'comissao') renderGeneric(currentView);
         }
         async function settleTicket(id, resultado) {
             if (!confirm('Confirmar resultado do bilhete #' + id + '?')) return;
@@ -1117,16 +1158,12 @@
             const saidas = mine.filter(t => t._sinal < 0).reduce((s, t) => s + t.valor, 0);
             const aberto = DB.tickets.filter(t => t.userId === u.id && t.status === 'aberto').reduce((s, t) => s + t.valor, 0);
             const cards = document.querySelectorAll('#view-caixa .bg-brand-cardBg span.text-xl');
-            if (cards.length >= 6) {
+            if (cards.length >= 5) {
                 cards[0].textContent = money(entradas);
                 cards[1].textContent = money(aberto);
                 cards[2].textContent = money(saidas);
                 cards[3].textContent = money(entradas - saidas);
-                cards[4].textContent = money(DB.comissao || 0);
-                cards[4].parentElement.classList.toggle('hidden', u.role !== 'cambista');          // comissao so existe para cambista
-                const ci = document.getElementById('caixa-com-info');
-                if (ci) ci.textContent = u.role === 'cambista' ? `${DB.comissaoPct || 10}% sobre ${money((DB.vendas || {})[u.id] || 0)} apostados pelos seus clientes` : '';
-                cards[5].textContent = u.role === 'admin' ? 'Ilimitado' : money(u.saldo);
+                cards[4].textContent = u.role === 'admin' ? 'Ilimitado' : money(u.saldo);
             }
             const box = document.getElementById('tabela-lancamentos');
             if (mine.length) { box.className = 'bg-white rounded-sm border border-gray-200'; box.innerHTML = txRows(mine.slice(0, 50)); }
@@ -1176,7 +1213,7 @@
             const accRow = c => `<div class="flex justify-between items-center py-2 border-t border-gray-100 first:border-t-0 text-xs">
                 <div><p class="font-bold text-gray-800">${esc(c.nome)} <span class="text-gray-400 font-semibold">@${esc(c.login)}</span>${c.ativo ? '' : ' <span class="text-red-600">(bloqueado)</span>'}</p>
                 <p class="text-[10px] text-gray-500">Saldo: <b>${money(c.saldo)}</b>${c.role === 'cambista' ? ' • ' + DB.users.filter(x => x.criadoPor === c.id).length + ' usuários' : ''}</p>
-                ${c.role === 'cambista' && DB.vendas ? `<p class="text-[10px] text-gray-500">Apostado: <b>${money(DB.vendas[c.id] || 0)}</b> • Comissão ${DB.comissaoPct || 10}%: <b class="text-emerald-600">${money(round2((DB.vendas[c.id] || 0) * (DB.comissaoPct || 10) / 100))}</b></p>` : ''}</div>
+</div>
                 <div class="flex gap-1">${(c.role === 'cambista' && c.ativo) ? `<button onclick="quickPick('ab-cambista','${c.id}','ab-valor')" class="text-[10px] font-black uppercase px-2 py-1 rounded bg-emerald-600 text-white">+ Saldo</button>` : ''}<button onclick="toggleAtivo('${c.id}')" class="text-[10px] font-black uppercase px-2 py-1 rounded ${c.ativo ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}">${c.ativo ? 'Bloquear' : 'Ativar'}</button></div></div>`;
 
             let html = `<div class="flex items-center justify-between mb-1">
@@ -1202,6 +1239,7 @@
                     <div><p class="font-bold text-gray-800">${esc(x.nome)} <span class="text-gray-400 font-semibold">@${esc(x.login)}</span>${x.ativo ? '' : ' <span class="text-red-600">(bloqueado)</span>'}</p>
                     <p class="text-[10px] text-gray-500">Cambista: ${esc(userName(x.criadoPor))}</p></div>
                     <span class="font-black text-gray-800">${money(x.saldo)}</span></div>`).join('') : empty('Nenhum usuário cadastrado.'));
+                html += card('Fontes de jogos', '<div id="fontes-box" class="text-xs text-gray-600 space-y-1">Carregando...</div>');
                 html += card('Dados de Teste', `
                     <p class="text-[11px] text-gray-600 font-medium">Contas de teste (senha <b>1234</b>): cambistas <b>cambista1</b> e <b>cambista2</b>; usuários <b>teste1</b>, <b>teste2</b> e <b>teste3</b>.</p>
                     <button onclick="seedDemo(true)" class="${B}"><i class="fa-solid fa-database mr-1"></i> Carregar Dados de Teste</button>
@@ -1213,11 +1251,6 @@
                 html += `<div class="bg-brand-navy text-white rounded-sm p-3 text-center shadow-md">
                     <span class="text-[11px] font-semibold text-gray-400 block">Seu saldo para recargas</span>
                     <span class="text-2xl font-black text-yellow-400">${money(u.saldo)}</span></div>`;
-                const vend = (DB.vendas || {})[u.id] || 0;
-                html += `<div class="com-card text-white rounded-sm p-3 shadow-md flex items-center justify-between">
-                    <div><span class="text-[11px] font-semibold text-blue-200 block">Minha comissão (${DB.comissaoPct || 10}%)</span>
-                    <span class="text-2xl font-black text-emerald-300">${money(DB.comissao || 0)}</span></div>
-                    <div class="text-right"><span class="text-[11px] font-semibold text-blue-200 block">Apostado pelos clientes</span><span class="text-base font-extrabold">${money(vend)}</span></div></div>`;
                 html += `<button onclick="navigateTo('futebol')" class="${B}"><i class="fa-solid fa-ticket mr-1"></i> Fazer bilhete para um cliente</button>`;
                 html += card('Adicionar Saldo ao Usuário', users.some(x => x.ativo) ? `
                     <select id="cb-usuario" class="${I}">${opts}</select>
@@ -1241,7 +1274,23 @@
             movs.sort((a, b) => b.data.localeCompare(a.data));
             html += card('Últimas Movimentações', movs.length ? txRows(movs.slice(0, 10)) : empty('Nenhuma movimentação ainda.'));
             v.innerHTML = html;
+            if (u.role === 'admin') loadFontes(false);
         }
+        async function loadFontes(run) {
+            const box = document.getElementById('fontes-box'); if (!box) return;
+            const r = await api('/admin/oddspapi' + (run ? '?run=1' : ''));
+            const ln = (a, b, c) => `<div class="flex justify-between gap-2 border-b border-gray-100 py-1"><span>${a}</span><b class="${c || 'text-gray-800'} text-right">${b}</b></div>`;
+            if (!r.ok) { box.innerHTML = `<p class="font-bold text-red-600">${esc(r.msg || 'Erro')}</p><p class="text-[11px] text-gray-500">No Render, crie a variável <b>ODDSPAPI_KEY</b> e reinicie o serviço.</p>`; return; }
+            const i = r.info_ultima || {};
+            box.innerHTML = ln('The Odds API', r.odds_api_jogos + ' jogos') + ln('OddsPapi', r.jogos + ' jogos', r.jogos ? 'text-emerald-600' : 'text-red-600')
+                + ln('Atualizada', r.atualizando ? 'atualizando...' : (r.atualizado_ha_min == null ? 'nunca' : 'há ' + r.atualizado_ha_min + ' min'))
+                + ln('Cota do mês', r.uso_no_mes + ' / ' + r.limite)
+                + (i.fixtures_com_odds != null ? ln('Última busca', i.fixtures_com_odds + ' jogos em ' + i.campeonatos + ' campeonatos') : '')
+                + (r.ultimo_erro ? `<p class="text-[11px] font-semibold text-red-600 pt-1">Erro: ${esc(r.ultimo_erro)}</p>` : '')
+                + `<button onclick="fontesRun()" class="w-full mt-2 bg-brand-blue text-white py-2 rounded font-extrabold text-xs uppercase"><i class="fa-solid fa-arrows-rotate mr-1"></i> Atualizar OddsPapi agora</button>
+                   <p class="text-[10px] text-gray-400">Cada atualização gasta de 5 a 12 chamadas do plano grátis (250/mês).</p>`;
+        }
+        async function fontesRun() { showToast('Atualizando a OddsPapi... pode levar 1 minuto.', 'warn'); await loadFontes(true); setTimeout(() => loadFontes(false), 30000); setTimeout(() => loadFontes(false), 60000); }
 
         // Inicialização
         boot();
