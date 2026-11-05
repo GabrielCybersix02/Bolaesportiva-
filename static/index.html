@@ -72,7 +72,7 @@
 <body class="bg-[#EEF3FB] text-brand-textDark min-h-screen flex flex-col items-center">
 
     <!-- ================= TELA DE LOGIN ================= -->
-    <div id="login-screen" class="fixed inset-0 z-[100] login-bg flex items-center justify-center p-4">
+    <div id="login-screen" class="hidden fixed inset-0 z-[100] login-bg flex items-center justify-center p-4">
         <div class="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
             <div class="text-center pt-7 pb-1 px-5">
                 <img src="/static/logo.svg" alt="Bola Esportiva" class="h-14 mx-auto">
@@ -91,6 +91,7 @@
                 <button type="submit" id="login-btn" class="w-full bg-brand-blue hover:bg-brand-blueDark text-white py-3 rounded font-extrabold text-sm uppercase shadow">
                     <i class="fa-solid fa-right-to-bracket mr-1"></i> Entrar
                 </button>
+                <button type="button" onclick="closeLogin()" class="w-full text-xs font-bold text-gray-500 py-1"><i class="fa-solid fa-arrow-left mr-1"></i> Voltar aos jogos</button>
             </form>
         </div>
     </div>
@@ -123,7 +124,7 @@
                         <img src="/static/icon.svg" alt="" class="w-14 h-14 rounded-2xl shadow-lg shrink-0">
                         <div class="min-w-0">
                             <h2 class="text-lg font-black leading-tight">Bola Esportiva</h2>
-                            <p class="text-xs text-blue-100 font-medium leading-snug mt-0.5">Odds de futebol, basquete, tênis e MMA. Seu bilhete vai direto para o WhatsApp do cambista.</p>
+                            <p class="text-xs text-blue-100 font-medium leading-snug mt-0.5">Odds de futebol, basquete, tênis e MMA. Monte seu bilhete e envie o PIN para o seu cambista.</p>
                         </div>
                     </div>
                     <div class="flex gap-1.5 mt-3 overflow-x-auto no-scrollbar">
@@ -136,7 +137,7 @@
                 </div>
 
                 <!-- User Balance Card -->
-                <div class="bg-[#E3EBF8] rounded-sm p-3 shadow-sm border border-gray-300">
+                <div data-roles="admin,cambista,usuario" class="bg-[#E3EBF8] rounded-sm p-3 shadow-sm border border-gray-300">
                     <h2 class="text-center font-extrabold text-base tracking-wide text-brand-textDark uppercase mb-0" id="home-nome"></h2>
                     <p id="home-role" class="text-center text-[11px] font-bold text-brand-blue uppercase mb-2"></p>
                     <div class="grid grid-cols-2 gap-2">
@@ -158,12 +159,12 @@
                         <span class="font-bold text-base" id="painel-btn-label">Painel</span>
                     </button>
 
-                    <button onclick="openModal('recuperar-pin')" class="w-full bg-brand-cardBg hover:bg-blue-100 transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
+                    <button data-roles="admin,cambista,usuario" onclick="openModal('recuperar-pin')" class="w-full bg-brand-cardBg hover:bg-blue-100 transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
                         <i class="fa-solid fa-keyboard text-lg w-6 text-brand-textDark text-center"></i>
-                        <span class="font-bold text-base text-brand-textDark">Recuperar PIN</span>
+                        <span class="font-bold text-base text-brand-textDark">Recuperar Senha</span>
                     </button>
 
-                    <button onclick="navigateTo('acumuladao')" class="w-full bg-brand-cardBg hover:bg-blue-100 transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
+                    <button data-roles="admin,cambista,usuario" onclick="navigateTo('acumuladao')" class="w-full bg-brand-cardBg hover:bg-blue-100 transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
                         <i class="fa-solid fa-star text-lg w-6 text-brand-textDark text-center"></i>
                         <span class="font-bold text-base text-brand-textDark">Acumuladão</span>
                     </button>
@@ -203,7 +204,7 @@
                         </div>
                     </div>
 
-                    <button onclick="navigateTo('caixa')" class="w-full bg-brand-cardBg hover:bg-blue-100 transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
+                    <button onclick="navigateTo('caixa')" data-roles="admin,cambista,usuario" class="w-full bg-brand-cardBg hover:bg-blue-100 transition-colors rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
                         <i class="fa-solid fa-wallet text-lg w-6 text-brand-textDark text-center"></i>
                         <span class="font-bold text-base text-brand-textDark">Caixa</span>
                     </button>
@@ -213,7 +214,9 @@
                     <button onclick="navigateTo('relatorios')" data-roles="admin,cambista" class="w-full bg-brand-cardBg hover:bg-blue-100 rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
                         <i class="fa-solid fa-chart-line text-lg w-6 text-center"></i><span class="font-bold text-base">Relatórios / Bilhetes</span>
                     </button>
-                    <button onclick="logout()" class="w-full bg-red-100 text-red-600 rounded-sm px-4 py-3.5 flex items-center gap-3 text-left font-bold text-base">
+                    <button data-roles="cambista" onclick="openPinValidar()" class="w-full bg-emerald-600 text-white rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm font-bold text-base"><i class="fa-solid fa-key text-lg w-6 text-center"></i> Validar PIN do Cliente</button>
+                    <button data-roles="guest" onclick="openLogin()" class="w-full bg-brand-navy text-white rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm font-bold text-base"><i class="fa-solid fa-right-to-bracket text-lg w-6 text-yellow-400 text-center"></i> Entrar (cambista / ADM)</button>
+                    <button data-roles="admin,cambista,usuario" onclick="logout()" class="w-full bg-red-100 text-red-600 rounded-sm px-4 py-3.5 flex items-center gap-3 text-left font-bold text-base">
                         <i class="fa-solid fa-right-from-bracket text-lg w-6 text-center"></i> Sair
                     </button>
                 </nav>
@@ -222,7 +225,7 @@
             <!-- ================= FUTEBOL VIEW (layout de lista por país / campeonato) ================= -->
             <div id="view-futebol" class="hidden -mx-3 -mt-3 pb-6">
                 <!-- Barra de aposta: valor, possível retorno e cupom -->
-                <div id="bet-bar" data-roles="usuario,cambista" class="sticky top-[60px] z-30 bg-white border-b border-gray-300 shadow-sm flex items-center gap-2.5 px-2.5 py-2">
+                <div id="bet-bar" data-roles="usuario,cambista,guest" class="sticky top-[60px] z-30 bg-white border-b border-gray-300 shadow-sm flex items-center gap-2.5 px-2.5 py-2">
                     <input id="bar-stake" type="text" inputmode="decimal" autocomplete="off" placeholder="R$ 0,00" oninput="setStake(this.value)" class="w-[33%] min-w-0 bg-gray-200 border border-gray-300 rounded px-2.5 py-2.5 text-[15px] font-semibold text-gray-800 placeholder-gray-400 focus:outline-none focus:border-brand-blue">
                     <div class="flex-1 text-center leading-tight min-w-0">
                         <span class="text-[12px] text-gray-500 block">Possível Retorno</span>
@@ -294,6 +297,10 @@
                         <span class="text-xl font-extrabold text-brand-textDark block mt-0.5">R$ 0,00</span>
                     </div>
                     <div class="bg-brand-cardBg p-2.5 rounded-sm text-center border border-gray-200">
+                        <span class="text-xs font-semibold text-gray-700 block">Comissões</span>
+                        <span class="text-xl font-extrabold text-brand-textDark block mt-0.5">R$ 0,00</span>
+                    </div>
+                    <div class="bg-brand-cardBg p-2.5 rounded-sm text-center border border-gray-200">
                         <span class="text-xs font-semibold text-gray-700 block">Total</span>
                         <span class="text-xl font-extrabold text-brand-textDark block mt-0.5">R$0,00</span>
                     </div>
@@ -358,13 +365,15 @@
                 <p class="text-[10px] font-bold text-brand-blue uppercase" id="sidebar-role"></p>
             </div>
             <div class="flex-1 p-2 space-y-1 overflow-y-auto">
+                <button data-roles="guest" onclick="toggleSideMenu(); openLogin();" class="w-full text-left p-3 bg-brand-blue text-white rounded font-bold text-sm flex items-center gap-3"><i class="fa-solid fa-right-to-bracket w-5"></i> Entrar</button>
+                <button data-roles="cambista" onclick="toggleSideMenu(); openPinValidar();" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3"><i class="fa-solid fa-key text-brand-blue w-5"></i> Validar PIN do Cliente</button>
                 <button onclick="navigateTo('home'); toggleSideMenu();" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
                     <i class="fa-solid fa-house text-brand-blue w-5"></i> Início
                 </button>
                 <button onclick="navigateTo('futebol'); toggleSideMenu();" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
                     <i class="fa-solid fa-futbol text-brand-blue w-5"></i> Futebol
                 </button>
-                <button onclick="navigateTo('caixa'); toggleSideMenu();" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
+                <button onclick="navigateTo('caixa'); toggleSideMenu();" data-roles="admin,cambista,usuario" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
                     <i class="fa-solid fa-wallet text-brand-blue w-5"></i> Caixa
                 </button>
                 <button onclick="navigateTo('bilhetes'); toggleSideMenu();" data-roles="usuario" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
@@ -372,15 +381,6 @@
                 </button>
                 <button onclick="navigateTo('relatorios'); toggleSideMenu();" data-roles="admin,cambista" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
                     <i class="fa-solid fa-chart-line text-brand-blue w-5"></i> Relatórios
-                </button>
-                <button onclick="navigateTo('acertos'); toggleSideMenu();" data-roles="usuario" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
-                    <i class="fa-solid fa-scale-balanced text-brand-blue w-5"></i> Meu Acerto
-                </button>
-                <button onclick="navigateTo('acertos'); toggleSideMenu();" data-roles="cambista" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
-                    <i class="fa-solid fa-scale-balanced text-brand-blue w-5"></i> Acertos dos Clientes
-                </button>
-                <button onclick="navigateTo('acertos'); toggleSideMenu();" data-roles="admin" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
-                    <i class="fa-solid fa-scale-balanced text-brand-blue w-5"></i> Acertos (Fiado)
                 </button>
                 <button onclick="navigateTo('comissao'); toggleSideMenu();" data-roles="cambista" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
                     <i class="fa-solid fa-sack-dollar text-brand-blue w-5"></i> Minha Comissão
@@ -419,15 +419,6 @@
                     <div class="flex justify-between items-end">
                         <div><span class="text-[12px] text-gray-600 block leading-tight">Cotação</span><span id="betslip-total-odd" class="text-brand-blue font-extrabold text-[18px] leading-tight">0,00</span></div>
                         <div class="text-right"><span class="text-[12px] text-gray-600 block leading-tight">Possível Retorno</span><span id="betslip-payout" class="text-brand-blue font-extrabold text-[20px] leading-tight">R$ 0,00</span></div>
-                    </div>
-
-                    <!-- Só o cambista vê: escolher o cliente do bilhete -->
-                    <div data-roles="cambista" class="space-y-1">
-                        <div class="flex gap-2">
-                            <select id="betslip-client" onchange="onClientChange(this.value)" class="flex-1 min-w-0 h-11 border border-gray-300 rounded bg-white px-2.5 text-[15px] text-gray-800 focus:outline-none focus:border-brand-blue"></select>
-                            <button onclick="openNewClient()" aria-label="Cadastrar novo cliente" class="w-12 h-11 bg-brand-navy text-white rounded text-2xl font-bold leading-none">+</button>
-                        </div>
-                        <p id="client-hint" class="text-[12px] text-gray-500 font-semibold"></p>
                     </div>
 
                     <div class="flex items-center gap-2">
@@ -643,7 +634,7 @@
             return `<span class="ml-auto shrink-0 min-w-[22px] text-center bg-[#16264A] text-red-400 text-[13px] font-black rounded px-1 leading-5">${v}</span>`;
         }
         async function refreshPlacares() {
-            if (!sessionId || !SPORTS[currentView] || !matchesData.some(m => m.ts <= Date.now())) return;
+            if (!SPORTS[currentView] || !matchesData.some(m => m.ts <= Date.now())) return;
             const r = await api('/placares'); if (!r.ok) return;
             const j = JSON.stringify(r.placares); if (j === LIVESCORE_J) return;
             LIVESCORE_J = j; LIVESCORE = r.placares; if (SPORTS[currentView]) renderMatches(document.getElementById('search-teams').value);
@@ -738,7 +729,7 @@
         function isSelected(matchId, market) {
             return betslip.some(item => item.matchId === matchId && item.market === market);
         }
-        const canBet = u => !!u && (u.role === 'usuario' || u.role === 'cambista');
+        const canBet = u => !u || u.role === 'usuario' || u.role === 'cambista';       // visitante (sem login) tambem monta bilhete
         const MARKET_NAME = { '1': 'Casa', 'X': 'Empate', '2': 'Fora' };
         function parseStake(v) { const n = parseFloat(String(v || '').replace(',', '.')); return isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : 0; }
 
@@ -886,25 +877,82 @@
             const stake = parseStake(document.getElementById('betslip-stake').value);
             if (stake < 1) { showToast('Aposta mínima: R$ 1,00.', 'err'); return; }
             const body = { valor: stake, selecoes: betslip.map(s => ({ matchId: s.matchId, market: s.market })) };
-            if (u.role === 'cambista') {
-                if (!betClient) { showToast('Selecione o cliente do bilhete.', 'err'); return; }
-                body.clienteId = betClient;
-            }
             const btn = document.getElementById('finalizar-btn'); betBusy = true; btn.disabled = true; btn.textContent = 'Enviando...';
-            let r; try { r = await api('/bets', body); } finally { betBusy = false; btn.disabled = false; btn.textContent = 'Finalizar'; }
+            let r; try { r = await api(u ? '/bets' : '/pin', body); } finally { betBusy = false; btn.disabled = false; btn.textContent = 'Finalizar'; }
             if (!r.ok) { showToast(r.msg, 'err'); return; }
-            clearBetslip(); setStake(''); toggleBetslipModal(); await loadState(); refreshHome();
+            clearBetslip(); setStake(''); toggleBetslipModal();
+            if (!u) { showPinCard(r); return; }                       // visitante: recebe o PIN para mandar ao cambista
+            await loadState(); refreshHome();
             if (u.role === 'cambista') { showTicketDone(r); return; }
             if (r.cambista && r.cambista.telefone) {
                 showToast(`Bilhete #${r.id} confirmado! Abrindo o WhatsApp do seu cambista...`);
                 setTimeout(() => { window.location.href = 'https://wa.me/' + r.cambista.telefone + '?text=' + encodeURIComponent(bilheteWhats(r)); }, 1500);
             } else showToast(`Bilhete #${r.id} confirmado! Seu cambista ainda não cadastrou o WhatsApp.`, 'warn');
         }
+        // ---------- PIN: cliente sem conta -> codigo -> cambista confirma ----------
+        let LAST_PIN = null;
+        function pinWhats(r) {
+            const kc = n => String(n).split('').map(d => d + '️⃣').join('');
+            const L = ['🎟️ *APOSTA PARA CONFIRMAR*', '', '🔑 *PIN:* ' + r.pin, '', '🎯 *Palpites:*'];
+            r.selecoes.forEach((s, i) => L.push(kc(i + 1) + ' ' + s.jogo, '     ' + (s.mercadoNome ? s.mercadoNome + ': ' : '') + '*' + s.palpite + '* (odd ' + Number(s.odd).toFixed(2) + ')'));
+            L.push('', '📊 *Odd total:* ' + Number(r.odd).toFixed(2), '💰 *Valor:* ' + money(r.valor), '🏆 *Prêmio possível:* ' + money(r.retorno), '', 'Confirma essa aposta pra mim, por favor 🙏');
+            return L.join('\n');
+        }
+        function showPinCard(r) {
+            LAST_PIN = r;
+            document.getElementById('modal-title').innerText = 'Cupom de Apostas';
+            document.getElementById('modal-body').innerHTML = `<div class="bg-[#35CC73] text-white text-center rounded border border-dashed border-green-800 p-3 space-y-2">
+                    <p class="font-extrabold uppercase text-[15px]">Aposta ainda não confirmada</p>
+                    <p class="text-[14px]">Para validar sua aposta, envie o código abaixo para o seu cambista:</p>
+                    <p class="text-4xl font-black tracking-widest">${esc(r.pin)}</p>
+                    <button onclick="copyPin()" class="w-full bg-[#259B55] text-white py-2.5 rounded font-bold text-[15px]"><i class="fa-regular fa-copy mr-1"></i> Copiar PIN</button>
+                    <button onclick="sharePin()" class="w-full bg-[#259B55] text-white py-2.5 rounded font-bold text-[15px]"><i class="fa-brands fa-whatsapp mr-1"></i> Enviar pelo WhatsApp</button></div>
+                <div class="text-[12px] text-gray-700 space-y-1 pt-2">${r.selecoes.map(s => `<p><b>${esc(s.jogo)}</b><br>${esc((s.mercadoNome ? s.mercadoNome + ': ' : '') + s.palpite)} • odd ${fmtOdd(s.odd)}</p>`).join('')}
+                    <p>Odd total <b>${fmtOdd(r.odd)}</b> • Valor <b>${money(r.valor)}</b> • Prêmio possível <b class="text-brand-blue">${money(r.retorno)}</b></p>
+                    <p class="text-[11px] text-gray-500">O bilhete só vale depois que o cambista confirmar o PIN. O PIN vale por 12 horas.</p></div>`;
+            document.getElementById('modal-container').classList.remove('hidden');
+        }
+        async function copyPin() {
+            if (!LAST_PIN) return;
+            try { await navigator.clipboard.writeText(LAST_PIN.pin); } catch (e) { const t = document.createElement('textarea'); t.value = LAST_PIN.pin; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (e2) {} t.remove(); }
+            showToast('PIN copiado!');
+        }
+        function sharePin() { if (LAST_PIN) window.open('https://wa.me/?text=' + encodeURIComponent(pinWhats(LAST_PIN)), '_blank'); }
+        function openPinValidar() {                  // cambista: digita o PIN do cliente e confirma o bilhete
+            document.getElementById('modal-title').innerText = 'Validar PIN do Cliente';
+            document.getElementById('modal-body').innerHTML = `<div class="space-y-2">
+                <input id="pin-code" type="text" inputmode="numeric" maxlength="6" placeholder="PIN de 6 números" class="w-full p-3 border border-gray-300 rounded text-center text-2xl font-black tracking-widest">
+                <button onclick="buscarPin()" class="w-full bg-brand-blue text-white py-2.5 font-extrabold text-xs uppercase rounded"><i class="fa-solid fa-magnifying-glass mr-1"></i> Buscar bilhete</button>
+                <div id="pin-res"></div></div>`;
+            document.getElementById('modal-container').classList.remove('hidden');
+        }
+        async function buscarPin() {
+            const code = val('pin-code').replace(/\D/g, ''), box = document.getElementById('pin-res');
+            if (code.length !== 6) { showToast('O PIN tem 6 números.', 'err'); return; }
+            box.innerHTML = '<p class="text-xs text-gray-400 text-center py-2">Buscando...</p>';
+            const r = await api('/pin/' + code);
+            if (!r.ok) { box.innerHTML = `<p class="text-xs font-bold text-red-600">${esc(r.msg || 'Erro')}</p>`; return; }
+            box.innerHTML = `<div class="text-[13px] text-gray-800 space-y-1 border border-gray-200 rounded p-2.5">
+                ${r.selecoes.map(s => `<p><b>${esc(s.jogo)}</b><br>${esc((s.mercadoNome ? s.mercadoNome + ': ' : '') + s.palpite)} • odd ${fmtOdd(s.odd)}</p>`).join('')}
+                <p>Odd total <b>${fmtOdd(r.odd)}</b></p>
+                <label class="text-[11px] font-bold text-gray-600 uppercase block pt-1">Valor da aposta (R$)</label>
+                <input id="pin-valor" type="text" inputmode="decimal" value="${String(r.valor).replace('.', ',')}" oninput="pinCalc(${r.odd})" class="w-full p-2.5 border border-gray-300 rounded text-sm font-bold">
+                <p>Prêmio possível: <b id="pin-ret" class="text-brand-blue">${money(r.retorno)}</b></p>
+                <p class="text-[12px] text-gray-500">Seu saldo: <b>${money(r.saldo)}</b></p></div>
+                <button onclick="confirmarPin('${code}')" class="w-full mt-2 bg-emerald-600 text-white py-2.5 font-extrabold text-xs uppercase rounded"><i class="fa-solid fa-circle-check mr-1"></i> Confirmar aposta</button>`;
+        }
+        function pinCalc(odd) { const el = document.getElementById('pin-ret'); if (el) el.textContent = money(parseValor('pin-valor') * odd); }
+        async function confirmarPin(code) {
+            const r = await api('/pin/' + code + '/confirmar', { valor: parseValor('pin-valor') });
+            if (!r.ok) { showToast(r.msg, 'err'); return; }
+            await loadState(); refreshHome(); if (currentView === 'painel') renderPainel(); if (currentView === 'caixa') renderCaixa();
+            showTicketDone(r);
+        }
         function showTicketDone(r) {                    // cambista: bilhete feito para o cliente; manda pelo WhatsApp (ele escolhe o contato)
             LAST_TICKET = r;
             document.getElementById('modal-title').innerText = 'Bilhete #' + r.id + ' criado';
             document.getElementById('modal-body').innerHTML = `<div class="text-sm space-y-1 text-gray-700">
-                <p>Cliente: <b>${esc(r.usuario)}</b></p>
+                <p><b>${esc(r.usuario)}</b></p>
                 <p>Odd total: <b>${fmtOdd(r.odd)}</b> • Valor: <b>${money(r.valor)}</b></p>
                 <p>Prêmio possível: <b class="text-brand-blue">${money(r.retorno)}</b></p></div>
                 <button onclick="shareTicket()" class="w-full bg-emerald-600 text-white py-2.5 font-bold text-xs uppercase rounded"><i class="fa-brands fa-whatsapp mr-1"></i> Enviar bilhete por WhatsApp</button>
@@ -1066,8 +1114,9 @@
                 ${manage ? `<div class="grid grid-cols-3 gap-1 pt-1">${[['ganhou', 'bg-emerald-600', 'Ganhou'], ['perdeu', 'bg-red-600', 'Perdeu'], ['cancelado', 'bg-gray-600', 'Anular']].map(([r, c, n]) => `<button onclick="settleTicket('${t.id}','${r}')" class="${c} text-white rounded py-1 text-[10px] font-black uppercase">${n}</button>`).join('')}</div>` : ''}</div>`;
         }
         async function pollLive() {
-            if (!sessionId || document.hidden) return;
+            if (document.hidden) return;
             refreshPlacares();
+            if (!sessionId) return;
             if (await loadState()) { refreshHome(); if (currentView === 'caixa') renderCaixa(); }      // saldo e bilhetes liquidados sozinhos aparecem sem recarregar
             const r = await api('/live'); if (!r.ok) return;
             const find = id => { for (const t of DB.tickets) { const s = t.selecoes.find(x => x.id === id); if (s) return s; } };
@@ -1192,11 +1241,21 @@
         async function logout() {
             await api('/logout', {}); sessionId = null; DB = { users: [], transactions: [], tickets: [] };
             Object.keys(SPORT_CACHE).forEach(k => delete SPORT_CACHE[k]); matchesData = [];
-            document.getElementById('login-user').value = ''; document.getElementById('login-error').classList.add('hidden'); showLogin();
+            document.getElementById('login-user').value = ''; document.getElementById('login-error').classList.add('hidden');
+            betslip = []; betClient = ''; try { setStake(''); } catch (e) {} enterGuest();
         }
         function applyRoleUI() {
-            const u = me(); if (!u) return;
-            document.querySelectorAll('[data-roles]').forEach(el => el.classList.toggle('hidden', !el.dataset.roles.split(',').includes(u.role)));
+            const u = me(), role = u ? u.role : 'guest';
+            document.querySelectorAll('[data-roles]').forEach(el => el.classList.toggle('hidden', !el.dataset.roles.split(',').includes(role)));
+            if (!u) { const a = document.getElementById('sidebar-user'), b = document.getElementById('sidebar-role'); if (a) a.textContent = 'VISITANTE'; if (b) b.textContent = 'Sem login'; }
+        }
+        function openLogin() { document.getElementById('login-screen').classList.remove('hidden'); }
+        function closeLogin() { document.getElementById('login-screen').classList.add('hidden'); }
+        function enterGuest() {                     // o site abre direto nos jogos; o cliente nao tem conta
+            sessionId = null; DB = { users: [], transactions: [], tickets: [] };
+            closeLogin(); applyRoleUI(); updateBetslipUI();
+            clearInterval(liveTimer); liveTimer = setInterval(pollLive, 30000);
+            navigateTo('futebol');
         }
         async function enterApp(haveState) {
             if (!haveState && !(await loadState())) { showLogin(); return; }
@@ -1209,7 +1268,7 @@
         }
         async function boot() {
             const r = await api('/state');
-            if (r.ok && r.me) { DB = r; STATE_AT = Date.now(); sessionId = String(r.me); enterApp(true); }
+            if (r.ok && r.me) { DB = r; STATE_AT = Date.now(); sessionId = String(r.me); enterApp(true); } else enterGuest();
         }
         async function changePassword() {
             const nova = val('pw-nova'), conf = val('pw-conf');
@@ -1252,6 +1311,7 @@
             }).join('');
         }
 
+        let CAIXA_COM = 0;
         function renderCaixa() {
             const u = me(); if (!u) return;
             const mine = DB.transactions.filter(t => t.para === u.id || t.de === u.id)
@@ -1261,12 +1321,14 @@
             const saidas = mine.filter(t => t._sinal < 0).reduce((s, t) => s + t.valor, 0);
             const aberto = DB.tickets.filter(t => (u.role === 'cambista' ? t.feitoPor === u.id : t.userId === u.id) && t.status === 'aberto').reduce((s, t) => s + t.valor, 0);
             const cards = document.querySelectorAll('#view-caixa .bg-brand-cardBg span.text-xl');
-            if (cards.length >= 5) {
+            if (cards.length >= 6) {
                 cards[0].textContent = money(entradas);
                 cards[1].textContent = money(aberto);
                 cards[2].textContent = money(saidas);
                 cards[3].textContent = money(entradas - saidas);
-                cards[4].textContent = u.role === 'admin' ? 'Ilimitado' : money(u.saldo);
+                cards[4].textContent = money(CAIXA_COM);
+                cards[5].textContent = u.role === 'admin' ? 'Ilimitado' : money(u.saldo);
+                if (u.role === 'cambista') api('/comissoes').then(r => { if (r.ok) { CAIXA_COM = r.comissao; cards[4].textContent = money(r.comissao); } });
             }
             const box = document.getElementById('tabela-lancamentos');
             if (mine.length) { box.className = 'bg-white rounded-sm border border-gray-200'; box.innerHTML = txRows(mine.slice(0, 50)); }
@@ -1350,23 +1412,10 @@
                     <button onclick="resetDB()" class="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-2.5 rounded font-extrabold text-xs uppercase"><i class="fa-solid fa-trash mr-1"></i> Apagar Tudo e Resetar</button>`);
                 movs = DB.transactions.filter(t => t.tipo === 'credito' && t.de === u.id).map(t => Object.assign({}, t, { _sinal: -1 }));
             } else {
-                const users = DB.users.filter(x => x.role === 'usuario' && x.criadoPor === u.id);
-                const opts = users.filter(x => x.ativo).map(x => `<option value="${x.id}">${esc(x.nome)} (@${esc(x.login)}) - ${money(x.saldo)}</option>`).join('');
-                html += `<div class="bg-brand-navy text-white rounded-sm p-3 text-center shadow-md">
-                    <span class="text-[11px] font-semibold text-gray-400 block">Limite (fiado) liberado aos clientes</span>
-                    <span class="text-2xl font-black text-yellow-400">${money(users.reduce((a, x) => a + (x.credito || 0), 0))}</span>
-                    <button onclick="navigateTo('acertos')" class="block w-full mt-2 text-[11px] font-extrabold uppercase text-yellow-300 underline">Ver acertos de segunda</button></div>`;
-                html += `<button onclick="navigateTo('futebol')" class="${B}"><i class="fa-solid fa-ticket mr-1"></i> Fazer bilhete para um cliente</button>`;
-                html += card('Meu WhatsApp', `<p class="text-[11px] text-gray-500">Quando seus usuários confirmarem um bilhete, o WhatsApp abre neste número com o bilhete pronto.</p>
-                    <input id="tel-num" type="tel" inputmode="tel" class="${I}" placeholder="DDD + número (ex: 11 91234-5678)" value="${esc(u.telefone || '')}">
-                    <button onclick="saveTel()" class="${B}"><i class="fa-brands fa-whatsapp mr-1"></i> Salvar número</button>`);
-                html += card('Novo Usuário', `
-                    <input id="nu-nome" class="${I}" placeholder="Nome do usuário">
-                    <input id="nu-login" class="${I}" placeholder="Login" autocapitalize="none" autocomplete="off">
-                    <input id="nu-senha" type="password" class="${I}" placeholder="Senha (mín. 4 caracteres)" autocomplete="new-password">
-                    <button onclick="camCreateUser()" class="${B}"><i class="fa-solid fa-user-plus mr-1"></i> Cadastrar Usuário</button>`);
-                html += card('Meus Usuários (' + users.length + ')', users.length ? users.map(accRow).join('') : empty('Nenhum usuário cadastrado.'));
-                movs = DB.transactions.filter(t => t.de === u.id).map(t => Object.assign({}, t, { _sinal: -1 }));
+                html += `<div class="bg-brand-navy text-white rounded-sm p-3 text-center shadow-md"><span class="text-[11px] font-semibold text-gray-400 block">Meu saldo</span><span class="text-2xl font-black text-yellow-400">${money(u.saldo)}</span></div>`;
+                html += `<button onclick="openPinValidar()" class="${B}"><i class="fa-solid fa-key mr-1"></i> Validar PIN do cliente</button>`;
+                html += `<button onclick="navigateTo('futebol')" class="${B}"><i class="fa-solid fa-ticket mr-1"></i> Fazer bilhete</button>`;
+                movs = DB.transactions.filter(t => t.de === u.id || t.para === u.id).map(t => Object.assign({}, t, { _sinal: t.para === u.id ? 1 : -1 }));
             }
             const mgd = DB.users.filter(x => x.role === (u.role === 'admin' ? 'cambista' : 'usuario') && x.ativo);
             if (mgd.length) html += card('Redefinir Senha', `<select id="rp-conta" class="${I}">${mgd.map(x => `<option value="${x.id}">${esc(x.nome)} (@${esc(x.login)})</option>`).join('')}</select>
