@@ -865,7 +865,7 @@
             const dt = new Date(), dia = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
             const hora = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
             const L = ['🎟️━━━━━━━━━━━━━━🎟️', '   🍀 *SEU BILHETE* 🍀', '🎟️━━━━━━━━━━━━━━🎟️', '',
-                '👤 *Nome:* ' + r.usuario, '🔖 *Bilhete Nº:* #' + String(r.id).padStart(6, '0'), '📅 *Data:* ' + dia + ' ⏰ ' + hora, '', '🎯 *Seus palpites:*'];
+                '👤 *Cliente:* ' + r.usuario, '🔖 *Bilhete Nº:* #' + String(r.id).padStart(6, '0'), '📅 *Data:* ' + dia + ' ⏰ ' + hora, '', '🎯 *Seus palpites:*'];
             r.selecoes.forEach((s, i) => L.push(kc(i + 1) + ' ' + s.jogo, '     Palpite: *' + s.palpite + '* (odd ' + Number(s.odd).toFixed(2) + ')'));
             L.push('', '📊 *Odd total:* ' + Number(r.odd).toFixed(2), '💰 *Valor apostado:* ' + money(r.valor), '🏆 *Prêmio possível:* ' + money(r.retorno), '',
                 '✅ *Status:* Aguardando término dos jogos', '', '━━━━━━━━━━━━━━━━', '🔒 Guarde este bilhete!', '🍀 *Boa sorte!* 🍀');
@@ -937,6 +937,8 @@
             box.innerHTML = `<div class="text-[13px] text-gray-800 space-y-1 border border-gray-200 rounded p-2.5">
                 ${r.selecoes.map(s => `<p><b>${esc(s.jogo)}</b><br>${esc((s.mercadoNome ? s.mercadoNome + ': ' : '') + s.palpite)} • odd ${fmtOdd(s.odd)}</p>`).join('')}
                 <p>Odd total <b>${fmtOdd(r.odd)}</b></p>
+                <label class="text-[11px] font-bold text-gray-600 uppercase block pt-1">Nome do cliente (sai no bilhete)</label>
+                <input id="pin-nome" type="text" maxlength="40" autocomplete="off" placeholder="Ex: João" class="w-full p-2.5 border border-gray-300 rounded text-sm font-bold">
                 <label class="text-[11px] font-bold text-gray-600 uppercase block pt-1">Valor da aposta (R$)</label>
                 <input id="pin-valor" type="text" inputmode="decimal" value="${String(r.valor).replace('.', ',')}" oninput="pinCalc(${r.odd})" class="w-full p-2.5 border border-gray-300 rounded text-sm font-bold">
                 <p>Prêmio possível: <b id="pin-ret" class="text-brand-blue">${money(r.retorno)}</b></p>
@@ -945,7 +947,7 @@
         }
         function pinCalc(odd) { const el = document.getElementById('pin-ret'); if (el) el.textContent = money(parseValor('pin-valor') * odd); }
         async function confirmarPin(code) {
-            const r = await api('/pin/' + code + '/confirmar', { valor: parseValor('pin-valor') });
+            const r = await api('/pin/' + code + '/confirmar', { valor: parseValor('pin-valor'), nome: val('pin-nome') });
             if (!r.ok) { showToast(r.msg, 'err'); return; }
             await loadState(); refreshHome(); if (currentView === 'painel') renderPainel(); if (currentView === 'caixa') renderCaixa();
             showTicketDone(r);
@@ -1110,7 +1112,7 @@
         }
         function ticketHtml(t, manage) {
             const d = new Date(t.data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-            return `<div class="border rounded p-2.5 bg-gray-50 text-xs space-y-1"><div class="flex justify-between"><b>#${t.id} • ${esc(userName(t.userId))}</b><span class="text-[10px] font-black px-1.5 py-0.5 rounded ${ST[t.status][1]}">${ST[t.status][0]}</span></div>
+            return `<div class="border rounded p-2.5 bg-gray-50 text-xs space-y-1"><div class="flex justify-between"><b>#${t.id} • ${esc(t.cliente || userName(t.userId))}</b><span class="text-[10px] font-black px-1.5 py-0.5 rounded ${ST[t.status][1]}">${ST[t.status][0]}</span></div>
                 ${t.selecoes.map(s => `<div class="text-[11px]"><div class="flex justify-between"><span>${esc(s.jogo)} <b class="text-brand-blue">(${esc(s.palpite || s.mercado)})</b></span><span>${Number(s.odd).toFixed(2)}</span></div>${liveLine(s)}</div>`).join('')}
                 <div class="flex justify-between text-[11px] text-gray-600 pt-1 border-t"><span>${d} • Aposta ${money(t.valor)} • Odd ${t.odd.toFixed(2)}</span><b>Retorno ${money(t.retorno)}</b></div>
                 ${manage ? `<div class="grid grid-cols-3 gap-1 pt-1">${[['ganhou', 'bg-emerald-600', 'Ganhou'], ['perdeu', 'bg-red-600', 'Perdeu'], ['cancelado', 'bg-gray-600', 'Anular']].map(([r, c, n]) => `<button onclick="settleTicket('${t.id}','${r}')" class="${c} text-white rounded py-1 text-[10px] font-black uppercase">${n}</button>`).join('')}</div>` : ''}</div>`;
