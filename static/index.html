@@ -363,6 +363,7 @@
                 <p class="text-xs text-gray-500 font-medium">Usuário Logado</p>
                 <p class="font-extrabold text-brand-textDark text-base" id="sidebar-user"></p>
                 <p class="text-[10px] font-bold text-brand-blue uppercase" id="sidebar-role"></p>
+                <p class="text-[9px] text-gray-400 mt-1">Versão PIN-4</p>
             </div>
             <div class="flex-1 p-2 space-y-1 overflow-y-auto">
                 <button data-roles="guest" onclick="toggleSideMenu(); openLogin();" class="w-full text-left p-3 bg-brand-blue text-white rounded font-bold text-sm flex items-center gap-3"><i class="fa-solid fa-right-to-bracket w-5"></i> Entrar</button>
@@ -660,7 +661,8 @@
         }
         function renderMatches(searchTerm) {
             const container = document.getElementById('matches-container'), q = (searchTerm || '').toLowerCase().trim();
-            const base = matchesData.filter(m => !q || (m.home + ' ' + m.away + ' ' + m.league + ' ' + m.country.name).toLowerCase().includes(q));
+            const agora = Date.now();       // jogo que ja comecou aparece SO na aba Ao Vivo; as outras listas mostram so os que ainda vao comecar
+            const base = matchesData.filter(m => (currentSport === 'aovivo' ? m.ts <= agora : m.ts > agora) && (!q || (m.home + ' ' + m.away + ' ' + m.league + ' ' + m.country.name).toLowerCase().includes(q)));
             renderDayTabs(base);
             if (currentDayFilter !== 'all' && !document.querySelector('#day-tabs [data-day="' + currentDayFilter + '"]')) { currentDayFilter = 'all'; renderDayTabs(base); }
             const ofDay = base.filter(m => inDay(m, currentDayFilter));
@@ -970,7 +972,7 @@
             }
         }
 
-        const SPORTS = { futebol: 'Futebol', aovivo: 'Ao Vivo / Começando', basquete: 'Basquete', tenis: 'Tênis', mma: 'MMA / Lutas' };
+        const SPORTS = { futebol: 'Futebol', aovivo: 'Ao Vivo', basquete: 'Basquete', tenis: 'Tênis', mma: 'MMA / Lutas' };
         async function navigateTo(viewName) {
             currentView = viewName;
             ['home', 'futebol', 'caixa', 'painel', 'generic'].forEach(v => document.getElementById('view-' + v).classList.add('hidden'));
