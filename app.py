@@ -35,6 +35,7 @@ SCHEMA = [
 """CREATE TABLE IF NOT EXISTS tickets(id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), data TEXT,
   selecoes TEXT, odd DOUBLE PRECISION, valor BIGINT, retorno BIGINT, status TEXT DEFAULT 'aberto')""",
 "CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY, ts DOUBLE PRECISION, v TEXT)",
+"""CREATE TABLE IF NOT EXISTS pins(code TEXT PRIMARY KEY, criado DOUBLE PRECISION NOT NULL, selecoes TEXT NOT NULL, valor BIGINT NOT NULL, usado INTEGER NOT NULL DEFAULT 0, usado_por INTEGER, ticket_id INTEGER)""",
 """CREATE TABLE IF NOT EXISTS acertos(id SERIAL PRIMARY KEY, data TEXT, user_id INTEGER NOT NULL REFERENCES users(id), cambista_id INTEGER, valor BIGINT NOT NULL, por INTEGER)""",
 "CREATE TABLE IF NOT EXISTS logos(nome TEXT PRIMARY KEY, url TEXT)"]
 class Conn:
@@ -131,6 +132,9 @@ def need(*roles):
             return f(u, *a, **k)
         w.__name__ = f.__name__; return w
     return deco
+def pub(f):                       # rota aberta: visitante (sem login) tambem acessa; u = usuario logado ou None
+    def w(*a, **k): return f(me(), *a, **k)
+    w.__name__ = f.__name__; return w
 def err(msg, code=400): return jsonify(ok=False, msg=msg), code
 FAILS = {}
 @app.post("/api/login")
@@ -487,7 +491,7 @@ def find_event(eid):
             if e["id"] == eid: return e
 MAXDUR = {"futebol": 2.5 * 3600, "basquete": 3.5 * 3600, "tenis": 5 * 3600, "mma": 6 * 3600}   # depois disso o jogo ja acabou: sai da lista
 @app.get("/api/odds")
-@need()
+@pub
 def odds(u):
     grupo = request.args.get("grupo", "futebol"); force = request.args.get("force") == "1"
     if grupo != "aovivo" and grupo not in GROUPS: return err("Esporte inválido.")
@@ -689,8 +693,8 @@ def logo_worker():
                 with _plock: _inflight.discard(item[0])
             time.sleep(5)
 @app.post("/api/logos")
-@need()
-def logos():
+@pub
+def logos(u):
     d = request.get_json(silent=True) or {}
     res, pend = logo_map({str(n) for n in (d.get("names") or [])[:300]}, str(d.get("grupo", "futebol")))
     return jsonify(ok=True, logos=res, pendentes=pend)
@@ -742,6 +746,29 @@ threading.Thread(target=logo_worker, daemon=True).start()
 threading.Thread(target=odds_loop, daemon=True).start()
 
 # ---------------------------------------------------------------- apostas
+def montar(sel):
+    """Valida as selecoes e devolve (final, odd). O preco SEMPRE vem do servidor. Levanta ValueError com a mensagem para o usuario."""
+    if not sel: raise ValueError("Adicione pelo menos uma seleção.")
+    odd, final, seen = 1.0, [], set()
+    for s in sel:
+        ev = find_event(str(s.get("matchId")))
+        if not ev: raise ValueError("Jogo não encontrado. Atualize a lista de jogos.")
+        if ev["id"] in seen: raise ValueError("Somente uma seleção por jogo.")
+        seen.add(ev["id"])
+        if datetime.fromisoformat(ev["commence"].replace("Z", "+00:00")).timestamp() <= time.time():
+            raise ValueError(f"Apostas encerradas: {ev['home']} x {ev['away']}.")
+        mk = str(s.get("market"))
+        if mk.startswith("x:"):                       # mercado extra: o preco vem do servidor (OddsPapi), nunca do navegador
+            try: xr = extra_price(ev, mk)
+            except Exception as e: raise ValueError("Mercado extra indisponível agora: " + str(e)[:120])
+            if not xr: raise ValueError("Esse mercado mudou ou saiu do ar. Reabra o jogo e escolha de novo.")
+            odd *= xr["odd"]; final.append(dict(id=ev["id"], key=ev["key"], commence=ev["commence"], home=ev["home"], away=ev["away"], jogo=f"{ev['home']} x {ev['away']}",
+                          mercado=mk, mercadoNome=xr["titulo"], palpite=xr["label"], fam=xr["fam"], hc=xr["hc"], fid=xr["fid"], odd=xr["odd"])); continue
+        o = ev["odds"].get(mk)
+        if not o: raise ValueError("Mercado indisponível.")
+        odd *= o; final.append(dict(id=ev["id"], key=ev["key"], commence=ev["commence"], home=ev["home"], away=ev["away"], jogo=f"{ev['home']} x {ev['away']}",
+                          mercado=mk, palpite=ev["home"] if mk == "1" else ev["away"] if mk == "2" else "Empate", odd=o))   # odd vem do servidor
+    return final, round(odd, 2)
 @app.post("/api/bets")
 @need("usuario", "cambista")
 def bet(u):
@@ -750,31 +777,15 @@ def bet(u):
     if u["role"] == "cambista":                    # cambista faz o bilhete em nome de um cliente dele (debita o saldo do cliente)
         try: cid = int(d.get("clienteId"))
         except (TypeError, ValueError): cid = None
-        cli = db().execute("SELECT * FROM users WHERE id=? AND role='usuario' AND criado_por=? AND ativo=1", (cid, u["id"])).fetchone() if cid else None
-        if not cli: return err("Selecione um cliente válido da sua lista.")
-        por = f" • feito por {u['nome']}"; feito_por, u = u, cli
+        if cid:               # (legado) cliente com conta; o fluxo normal agora e sem conta: bilhete no nome do cambista
+            cli = db().execute("SELECT * FROM users WHERE id=? AND role='usuario' AND criado_por=? AND ativo=1", (cid, u["id"])).fetchone()
+            if not cli: return err("Cliente inválido.")
+            por = f" • feito por {u['nome']}"; feito_por, u = u, cli
     if not sel: return err("Adicione pelo menos uma seleção.")
     if stake < 100: return err("Aposta mínima: R$ 1,00.")
-    odd, final, seen = 1.0, [], set()
-    for s in sel:
-        ev = find_event(str(s.get("matchId")))
-        if not ev: return err("Jogo não encontrado. Atualize a lista de jogos.")
-        if ev["id"] in seen: return err("Somente uma seleção por jogo.")
-        seen.add(ev["id"])
-        if datetime.fromisoformat(ev["commence"].replace("Z", "+00:00")).timestamp() <= time.time():
-            return err(f"Apostas encerradas: {ev['home']} x {ev['away']}.")
-        mk = str(s.get("market"))
-        if mk.startswith("x:"):                       # mercado extra: o preco vem do servidor (OddsPapi), nunca do navegador
-            try: xr = extra_price(ev, mk)
-            except Exception as e: return err("Mercado extra indisponível agora: " + str(e)[:120])
-            if not xr: return err("Esse mercado mudou ou saiu do ar. Reabra o jogo e escolha de novo.")
-            odd *= xr["odd"]; final.append(dict(id=ev["id"], key=ev["key"], commence=ev["commence"], home=ev["home"], away=ev["away"], jogo=f"{ev['home']} x {ev['away']}",
-                          mercado=mk, mercadoNome=xr["titulo"], palpite=xr["label"], fam=xr["fam"], hc=xr["hc"], fid=xr["fid"], odd=xr["odd"])); continue
-        o = ev["odds"].get(mk)
-        if not o: return err("Mercado indisponível.")
-        odd *= o; final.append(dict(id=ev["id"], key=ev["key"], commence=ev["commence"], home=ev["home"], away=ev["away"], jogo=f"{ev['home']} x {ev['away']}",
-                          mercado=mk, palpite=ev["home"] if mk == "1" else ev["away"] if mk == "2" else "Empate", odd=o))   # odd vem do servidor
-    odd = round(odd, 2); c = db(); c.execute("BEGIN")
+    try: final, odd = montar(sel)
+    except ValueError as e: return err(str(e))
+    c = db(); c.execute("BEGIN")
     try:
         if feito_por:        # cambista vendendo: o valor sai do saldo DO CAMBISTA; para o cliente vira fiado (credito), entra no acerto de segunda
             if stake > c.execute("SELECT saldo FROM users WHERE id=? FOR UPDATE", (feito_por["id"],)).fetchone()[0]:
@@ -843,7 +854,7 @@ def live_for_key(key, ttl=None):
         _live[key] = (time.time(), data); return data      # mantem o ultimo placar e nao insiste a cada segundo
 LIST_TTL = int(os.environ.get("LIVE_LIST_SECONDS", "90"))     # placar na lista de jogos: cada liga com jogo rolando gasta 1-2 creditos da The Odds API a cada atualizacao
 @app.get("/api/placares")
-@need()
+@pub
 def placares(u):
     t = time.time(); evs = {}
     for g_ in GROUPS:
@@ -946,7 +957,7 @@ def extra_price(ev, key):
     groups, flat, fid = op_markets(ev); x = flat.get(key)
     return dict(x, fid=fid) if x else None
 @app.get("/api/jogo")
-@need()
+@pub
 def jogo(u):
     ev = find_event(str(request.args.get("id", "")))
     if not ev: return err("Jogo não encontrado. Atualize a lista.", 404)
@@ -1107,20 +1118,80 @@ def seed(u):
 @need("admin")
 def reset(u):
     c = db(); c.execute("BEGIN")
-    for t in ("transactions", "tickets"): c.execute(f"DELETE FROM {t}")
+    for t in ("acertos", "pins", "transactions", "tickets"): c.execute(f"DELETE FROM {t}")     # acertos/pins antes de apagar os usuarios (chave estrangeira)
     c.execute("DELETE FROM users WHERE role!='admin'"); c.execute("UPDATE users SET pw=?, senha_padrao=1 WHERE id=?", (generate_password_hash("admin123"), u["id"])); c.execute("COMMIT")
     session.clear(); return jsonify(ok=True)
 # ---------------------------------------------------------------- comissoes (menu proprio: cambista ve a dele, ADM ve todas)
 def _com(cents): return round(float(cents or 0) * COMISSAO / 100, 2)
-_COM_BASE = ("FROM tickets t JOIN users x ON x.id=t.user_id JOIN users cam ON cam.id=x.criado_por "
-             "WHERE x.role='usuario' AND cam.role='cambista' AND t.status!='cancelado'")      # bilhete anulado nao conta
+_COM_BASE = ("FROM tickets t JOIN users x ON x.id=t.user_id JOIN users cam ON cam.id=(CASE WHEN x.role='cambista' THEN x.id ELSE x.criado_por END) "
+             "WHERE cam.role='cambista' AND t.status!='cancelado'")      # bilhete anulado nao conta
 def _com_cambista(c, cid):
-    rows = c.execute("SELECT x.id, x.nome, COUNT(*) AS n, COALESCE(SUM(t.valor),0) AS tot " + _COM_BASE + " AND cam.id=? GROUP BY x.id, x.nome ORDER BY tot DESC", (cid,)).fetchall()
-    rec = c.execute("SELECT t.id, t.data, x.nome, t.valor, t.status " + _COM_BASE + " AND cam.id=? ORDER BY t.id DESC LIMIT 60", (cid,)).fetchall()
+    rows = c.execute("SELECT x.id, (CASE WHEN x.role='cambista' THEN 'Clientes (PIN)' ELSE x.nome END) AS nome, COUNT(*) AS n, COALESCE(SUM(t.valor),0) AS tot " + _COM_BASE + " AND cam.id=? GROUP BY x.id, x.role, x.nome ORDER BY tot DESC", (cid,)).fetchall()
+    rec = c.execute("SELECT t.id, t.data, (CASE WHEN x.role='cambista' THEN 'Cliente (PIN)' ELSE x.nome END) AS nome, t.valor, t.status " + _COM_BASE + " AND cam.id=? ORDER BY t.id DESC LIMIT 60", (cid,)).fetchall()
     tot = sum(float(r["tot"]) for r in rows)
     return dict(pct=COMISSAO_PCT, apostado=tot / 100, comissao=_com(tot), bilhetes=sum(r["n"] for r in rows),
                 clientes=[dict(nome=r["nome"], bilhetes=r["n"], apostado=float(r["tot"]) / 100, comissao=_com(r["tot"])) for r in rows],
                 recentes=[dict(id=str(r["id"]), data=r["data"], cliente=r["nome"], valor=r["valor"] / 100, comissao=_com(r["valor"]), status=r["status"]) for r in rec])
+# ---------------------------------------------------------------- PIN: o cliente (sem conta) monta o bilhete e recebe um codigo; o cambista digita e confirma
+PIN_TTL = 12 * 3600
+_pin_hits = {}
+@app.post("/api/pin")
+def pin_criar():
+    d = request.get_json(silent=True) or {}; sel = [dict(matchId=str(x.get("matchId")), market=str(x.get("market"))) for x in (d.get("selecoes") or [])[:20] if isinstance(x, dict)]
+    stake = cents(d.get("valor"))
+    ip = (request.headers.get("X-Forwarded-For") or request.remote_addr or "?").split(",")[0].strip(); t = time.time()
+    hits = [x for x in _pin_hits.get(ip, []) if t - x < 3600]
+    if len(hits) >= 30: return err("Muitos bilhetes seguidos. Aguarde um pouco e tente de novo.", 429)
+    if stake < 100: return err("Aposta mínima: R$ 1,00.")
+    if stake > 5000000: return err("Valor muito alto.")
+    try: final, odd = montar(sel)
+    except ValueError as e: return err(str(e))
+    c = db(); code = None
+    for _ in range(12):
+        cand = str(secrets.randbelow(900000) + 100000)
+        if not c.execute("SELECT 1 FROM pins WHERE code=?", (cand,)).fetchone(): code = cand; break
+    if not code: return err("Tente de novo.", 503)
+    c.execute("INSERT INTO pins(code,criado,selecoes,valor) VALUES(?,?,?,?)", (code, t, json.dumps(sel), stake))
+    hits.append(t); _pin_hits[ip] = hits
+    return jsonify(ok=True, pin=code, odd=odd, valor=stake / 100, retorno=round(stake * odd) / 100, selecoes=final)
+def _pin_load(c, code):
+    p = c.execute("SELECT * FROM pins WHERE code=?", (str(code).strip(),)).fetchone()
+    if not p or time.time() - p["criado"] > PIN_TTL: return None, "PIN não encontrado ou expirado. Peça ao cliente para gerar outro."
+    if p["usado"]: return None, "Este PIN já foi usado em um bilhete."
+    return p, ""
+@app.get("/api/pin/<code>")
+@need("cambista")
+def pin_ver(u, code):
+    c = db(); p, m = _pin_load(c, code)
+    if not p: return err(m, 404)
+    try: final, odd = montar(json.loads(p["selecoes"]))
+    except ValueError as e: return err(str(e))
+    return jsonify(ok=True, pin=p["code"], odd=odd, valor=p["valor"] / 100, retorno=round(p["valor"] * odd) / 100, selecoes=final, saldo=u["saldo"] / 100)
+@app.post("/api/pin/<code>/confirmar")
+@need("cambista")
+def pin_confirmar(u, code):
+    d = request.get_json(silent=True) or {}; c = db(); p, m = _pin_load(c, code)
+    if not p: return err(m, 404)
+    try: final, odd = montar(json.loads(p["selecoes"]))
+    except ValueError as e: return err(str(e))
+    stake = cents(d["valor"]) if d.get("valor") not in (None, "") else int(p["valor"])
+    if stake < 100: return err("Aposta mínima: R$ 1,00.")
+    c.execute("BEGIN")
+    try:
+        pp = c.execute("SELECT usado FROM pins WHERE code=? FOR UPDATE", (p["code"],)).fetchone()
+        if not pp or pp["usado"]: c.execute("ROLLBACK"); return err("Este PIN já foi usado em um bilhete.")
+        if stake > c.execute("SELECT saldo FROM users WHERE id=? FOR UPDATE", (u["id"],)).fetchone()[0]:
+            c.execute("ROLLBACK"); return err("Seu saldo é insuficiente para este bilhete. Peça recarga ao ADM.")
+        c.execute("UPDATE users SET saldo=saldo-? WHERE id=?", (stake, u["id"]))
+        tid = c.execute("INSERT INTO tickets(user_id,data,selecoes,odd,valor,retorno) VALUES(?,?,?,?,?,?) RETURNING id",
+                        (u["id"], now(), json.dumps(final), odd, stake, int(round(stake * odd)))).fetchone()[0]
+        tx(c, "aposta", u["id"], None, stake, f"Bilhete #{tid} PIN {p['code']} ({len(final)} seleç{'ões' if len(final) > 1 else 'ão'}) odd {odd:.2f}")
+        c.execute("UPDATE pins SET usado=1, usado_por=?, ticket_id=? WHERE code=?", (u["id"], tid, p["code"]))
+        c.execute("COMMIT")
+    except Exception:
+        c.execute("ROLLBACK"); raise
+    return jsonify(ok=True, id=tid, odd=odd, valor=stake / 100, retorno=round(stake * odd) / 100, selecoes=final, usuario="Cliente (PIN " + p["code"] + ")")
+
 @app.get("/api/comissoes")
 @need("admin", "cambista")
 def comissoes(u):
@@ -1144,7 +1215,8 @@ def comissoes(u):
 @app.get("/api/relatorios")
 @need("admin", "cambista")
 def relatorios(u):
-    c = db(); ids = [r[0] for r in c.execute("SELECT id FROM users WHERE role='usuario'" + ("" if u["role"] == "admin" else " AND criado_por=?"), () if u["role"] == "admin" else (u["id"],))]
+    c = db(); ids = [r[0] for r in c.execute("SELECT id FROM users WHERE role IN ('usuario','cambista')" if u["role"] == "admin" else "SELECT id FROM users WHERE role='usuario' AND criado_por=?", () if u["role"] == "admin" else (u["id"],))]
+    if u["role"] == "cambista": ids.append(u["id"])          # bilhetes do proprio cambista (clientes sem conta, via PIN)
     ph = ",".join("?" * len(ids)) or "NULL"; day = datetime.now(timezone(timedelta(hours=-3))).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc).isoformat()   # "hoje" no horario do Brasil
     row = lambda sql, extra=(): float(c.execute(sql.format(ph), list(ids) + list(extra)).fetchone()[0] or 0)
     tot = row("SELECT SUM(valor) FROM tickets WHERE user_id IN ({}) AND status!='cancelado'")
