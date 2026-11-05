@@ -1295,6 +1295,9 @@ def health():
     try: db().execute("SELECT 1").fetchone(); return "ok"
     except Exception: return "erro", 500
 @app.get("/")
-def index(): return send_from_directory(os.path.join(BASE, "static"), "index.html")
+def index():
+    r = send_from_directory(os.path.join(BASE, "static"), "index.html")
+    r.headers["Cache-Control"] = "no-cache, must-revalidate"           # o navegador sempre confere se ha versao nova (antes podia mostrar o site antigo)
+    return r
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
