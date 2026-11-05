@@ -100,7 +100,7 @@ def init_db():
     except Exception: pass
     c.execute("ALTER TABLE logos ADD COLUMN IF NOT EXISTS ts DOUBLE PRECISION DEFAULT 0")
     c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS credito BIGINT NOT NULL DEFAULT 0")   # fiado: total de credito dado ao cliente e ainda nao acertado
-    c.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS feito_por INTEGER")                    # cambista que vendeu o bilhete (o valor sai do saldo DELE)
+    c.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS feito_por INTEGER"); c.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS cliente TEXT")                    # cambista que vendeu o bilhete (o valor sai do saldo DELE)
     if not c.execute("SELECT 1 FROM kv WHERE k='mig:caixa1'").fetchone():                         # 1x: "Limite (fiado)" antigo nunca saiu do saldo do cambista; some das saidas dele
         c.execute("UPDATE transactions SET de=NULL WHERE LEFT(descr, 14)='Limite (fiado)'"); c.execute("INSERT INTO kv(k,ts,v) VALUES('mig:caixa1',0,'1')")
     if not c.execute("SELECT 1 FROM kv WHERE k='mig:credito1'").fetchone():                       # 1x: o saldo que os clientes ja tem vira credito (fiado) deles
@@ -185,7 +185,7 @@ def state(u):
                 valor=r["valor"] / 100, desc=r["descr"]) for r in c.execute(tq + " ORDER BY id DESC LIMIT 500", ta)]
     tsql, targs = q("SELECT * FROM tickets", "user_id")
     tks = [dict(id=str(r["id"]), userId=str(r["user_id"]), data=r["data"], selecoes=json.loads(r["selecoes"]), odd=r["odd"],
-                valor=r["valor"] / 100, retorno=r["retorno"] / 100, status=r["status"], feitoPor=str(r["feito_por"]) if r["feito_por"] else None)
+                valor=r["valor"] / 100, retorno=r["retorno"] / 100, status=r["status"], feitoPor=str(r["feito_por"]) if r["feito_por"] else None, cliente=r["cliente"] or "")
            for r in c.execute(tsql + " ORDER BY id DESC LIMIT 300", targs)]
     cam = None
     if u["role"] == "usuario" and u["criado_por"]:
@@ -1176,6 +1176,7 @@ def pin_confirmar(u, code):
     except ValueError as e: return err(str(e))
     stake = cents(d["valor"]) if d.get("valor") not in (None, "") else int(p["valor"])
     if stake < 100: return err("Aposta mínima: R$ 1,00.")
+    nome = " ".join(str(d.get("nome") or "").split())[:40]          # nome do cliente (opcional) para sair no bilhete
     c.execute("BEGIN")
     try:
         pp = c.execute("SELECT usado FROM pins WHERE code=? FOR UPDATE", (p["code"],)).fetchone()
@@ -1183,14 +1184,14 @@ def pin_confirmar(u, code):
         if stake > c.execute("SELECT saldo FROM users WHERE id=? FOR UPDATE", (u["id"],)).fetchone()[0]:
             c.execute("ROLLBACK"); return err("Seu saldo é insuficiente para este bilhete. Peça recarga ao ADM.")
         c.execute("UPDATE users SET saldo=saldo-? WHERE id=?", (stake, u["id"]))
-        tid = c.execute("INSERT INTO tickets(user_id,data,selecoes,odd,valor,retorno) VALUES(?,?,?,?,?,?) RETURNING id",
-                        (u["id"], now(), json.dumps(final), odd, stake, int(round(stake * odd)))).fetchone()[0]
-        tx(c, "aposta", u["id"], None, stake, f"Bilhete #{tid} PIN {p['code']} ({len(final)} seleç{'ões' if len(final) > 1 else 'ão'}) odd {odd:.2f}")
+        tid = c.execute("INSERT INTO tickets(user_id,data,selecoes,odd,valor,retorno,cliente) VALUES(?,?,?,?,?,?,?) RETURNING id",
+                        (u["id"], now(), json.dumps(final), odd, stake, int(round(stake * odd)), nome)).fetchone()[0]
+        tx(c, "aposta", u["id"], None, stake, f"Bilhete #{tid} {nome + ' ' if nome else ''}PIN {p['code']} ({len(final)} seleç{'ões' if len(final) > 1 else 'ão'}) odd {odd:.2f}")
         c.execute("UPDATE pins SET usado=1, usado_por=?, ticket_id=? WHERE code=?", (u["id"], tid, p["code"]))
         c.execute("COMMIT")
     except Exception:
         c.execute("ROLLBACK"); raise
-    return jsonify(ok=True, id=tid, odd=odd, valor=stake / 100, retorno=round(stake * odd) / 100, selecoes=final, usuario="Cliente (PIN " + p["code"] + ")")
+    return jsonify(ok=True, id=tid, odd=odd, valor=stake / 100, retorno=round(stake * odd) / 100, selecoes=final, usuario=nome or ("Cliente (PIN " + p["code"] + ")"))
 
 @app.get("/api/comissoes")
 @need("admin", "cambista")
