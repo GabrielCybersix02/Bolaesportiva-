@@ -363,7 +363,7 @@
                 <p class="text-xs text-gray-500 font-medium">Usuário Logado</p>
                 <p class="font-extrabold text-brand-textDark text-base" id="sidebar-user"></p>
                 <p class="text-[10px] font-bold text-brand-blue uppercase" id="sidebar-role"></p>
-                <p class="text-[9px] text-gray-400 mt-1">Versão PIN-4</p>
+                <p class="text-[9px] text-gray-400 mt-1">Versão PIN-5</p>
             </div>
             <div class="flex-1 p-2 space-y-1 overflow-y-auto">
                 <button data-roles="guest" onclick="toggleSideMenu(); openLogin();" class="w-full text-left p-3 bg-brand-blue text-white rounded font-bold text-sm flex items-center gap-3"><i class="fa-solid fa-right-to-bracket w-5"></i> Entrar</button>
@@ -937,20 +937,39 @@
             box.innerHTML = `<div class="text-[13px] text-gray-800 space-y-1 border border-gray-200 rounded p-2.5">
                 ${r.selecoes.map(s => `<p><b>${esc(s.jogo)}</b><br>${esc((s.mercadoNome ? s.mercadoNome + ': ' : '') + s.palpite)} • odd ${fmtOdd(s.odd)}</p>`).join('')}
                 <p>Odd total <b>${fmtOdd(r.odd)}</b></p>
-                <label class="text-[11px] font-bold text-gray-600 uppercase block pt-1">Nome do cliente (sai no bilhete)</label>
-                <input id="pin-nome" type="text" maxlength="40" autocomplete="off" placeholder="Ex: João" class="w-full p-2.5 border border-gray-300 rounded text-sm font-bold">
+                <label class="text-[11px] font-bold text-gray-600 uppercase block pt-1">Nome do cliente</label>
+                <input id="pin-nome" type="text" maxlength="40" autocomplete="off" placeholder="Escreva o nome do cliente" class="w-full p-2.5 border border-gray-300 rounded text-sm font-bold disabled:bg-gray-100">
+                <button id="pin-nome-btn" onclick="toggleNome()" class="w-full bg-brand-navy text-white py-2.5 font-extrabold text-xs uppercase rounded"><i class="fa-solid fa-user-check mr-1"></i> Confirmar nome do cliente</button>
                 <label class="text-[11px] font-bold text-gray-600 uppercase block pt-1">Valor da aposta (R$)</label>
                 <input id="pin-valor" type="text" inputmode="decimal" value="${String(r.valor).replace('.', ',')}" oninput="pinCalc(${r.odd})" class="w-full p-2.5 border border-gray-300 rounded text-sm font-bold">
                 <p>Prêmio possível: <b id="pin-ret" class="text-brand-blue">${money(r.retorno)}</b></p>
                 <p class="text-[12px] text-gray-500">Seu saldo: <b>${money(r.saldo)}</b></p></div>
-                <button onclick="confirmarPin('${code}')" class="w-full mt-2 bg-emerald-600 text-white py-2.5 font-extrabold text-xs uppercase rounded"><i class="fa-solid fa-circle-check mr-1"></i> Confirmar aposta</button>`;
+                <button id="pin-ok" disabled onclick="confirmarPin('${code}')" class="w-full mt-2 bg-emerald-600 text-white py-2.5 font-extrabold text-xs uppercase rounded opacity-40"><i class="fa-solid fa-paper-plane mr-1"></i> Confirmar e enviar bilhete</button>
+                <p id="pin-dica" class="text-[11px] text-gray-500 font-semibold text-center">Primeiro confirme o nome do cliente.</p>`;
+            PIN_NOME = '';
+        }
+        let PIN_NOME = '';
+        function toggleNome() {                      // 1) confirma o nome do cliente; 2) so entao o botao verde libera
+            const inp = document.getElementById('pin-nome'), btn = document.getElementById('pin-nome-btn'), ok = document.getElementById('pin-ok'), dica = document.getElementById('pin-dica');
+            if (PIN_NOME) {                          // tocar de novo = alterar o nome
+                PIN_NOME = ''; inp.disabled = false; inp.focus();
+                btn.className = 'w-full bg-brand-navy text-white py-2.5 font-extrabold text-xs uppercase rounded'; btn.innerHTML = '<i class="fa-solid fa-user-check mr-1"></i> Confirmar nome do cliente';
+                ok.disabled = true; ok.classList.add('opacity-40'); dica.textContent = 'Primeiro confirme o nome do cliente.'; return;
+            }
+            const n = inp.value.trim().replace(/\s+/g, ' ');
+            if (n.length < 2) { showToast('Escreva o nome do cliente.', 'err'); return; }
+            PIN_NOME = n; inp.value = n; inp.disabled = true;
+            btn.className = 'w-full bg-emerald-700 text-white py-2.5 font-extrabold text-xs uppercase rounded'; btn.innerHTML = '<i class="fa-solid fa-circle-check mr-1"></i> Nome confirmado (toque para alterar)';
+            ok.disabled = false; ok.classList.remove('opacity-40'); dica.textContent = 'O bilhete vai com o nome: ' + n;
         }
         function pinCalc(odd) { const el = document.getElementById('pin-ret'); if (el) el.textContent = money(parseValor('pin-valor') * odd); }
         async function confirmarPin(code) {
-            const r = await api('/pin/' + code + '/confirmar', { valor: parseValor('pin-valor'), nome: val('pin-nome') });
+            if (!PIN_NOME) { showToast('Confirme o nome do cliente primeiro.', 'err'); return; }
+            const r = await api('/pin/' + code + '/confirmar', { valor: parseValor('pin-valor'), nome: PIN_NOME });
             if (!r.ok) { showToast(r.msg, 'err'); return; }
             await loadState(); refreshHome(); if (currentView === 'painel') renderPainel(); if (currentView === 'caixa') renderCaixa();
             showTicketDone(r);
+            try { shareTicket(); } catch (e) {}          // ja abre o WhatsApp com o bilhete e o nome do cliente (se o navegador bloquear, o botao abaixo faz o mesmo)
         }
         function showTicketDone(r) {                    // cambista: bilhete feito para o cliente; manda pelo WhatsApp (ele escolhe o contato)
             LAST_TICKET = r;
