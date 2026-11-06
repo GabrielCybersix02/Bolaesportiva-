@@ -101,6 +101,9 @@ def init_db():
     c.execute("ALTER TABLE logos ADD COLUMN IF NOT EXISTS ts DOUBLE PRECISION DEFAULT 0")
     c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS credito BIGINT NOT NULL DEFAULT 0")   # fiado: total de credito dado ao cliente e ainda nao acertado
     c.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS feito_por INTEGER"); c.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS cliente TEXT")                    # cambista que vendeu o bilhete (o valor sai do saldo DELE)
+    c.execute("ALTER TABLE pins ADD COLUMN IF NOT EXISTS token TEXT")                              # link publico para o cliente acompanhar o bilhete
+    c.execute("ALTER TABLE tickets ADD COLUMN IF NOT EXISTS token TEXT")
+    c.execute("CREATE UNIQUE INDEX IF NOT EXISTS tickets_token ON tickets(token)")
     if not c.execute("SELECT 1 FROM kv WHERE k='mig:caixa1'").fetchone():                         # 1x: "Limite (fiado)" antigo nunca saiu do saldo do cambista; some das saidas dele
         c.execute("UPDATE transactions SET de=NULL WHERE LEFT(descr, 14)='Limite (fiado)'"); c.execute("INSERT INTO kv(k,ts,v) VALUES('mig:caixa1',0,'1')")
     if not c.execute("SELECT 1 FROM kv WHERE k='mig:credito1'").fetchone():                       # 1x: o saldo que os clientes ja tem vira credito (fiado) deles
@@ -796,15 +799,16 @@ def bet(u):
             if stake > c.execute("SELECT saldo FROM users WHERE id=? FOR UPDATE", (u["id"],)).fetchone()[0]:
                 c.execute("ROLLBACK"); return err("Saldo insuficiente. Peça uma recarga ao ADM.")
             c.execute("UPDATE users SET saldo=saldo-? WHERE id=?", (stake, u["id"]))
-        tid = c.execute("INSERT INTO tickets(user_id,data,selecoes,odd,valor,retorno,feito_por) VALUES(?,?,?,?,?,?,?) RETURNING id",
-                        (u["id"], now(), json.dumps(final), odd, stake, int(round(stake * odd)), feito_por["id"] if feito_por else None)).fetchone()[0]
+        token = secrets.token_urlsafe(9)
+        tid = c.execute("INSERT INTO tickets(user_id,data,selecoes,odd,valor,retorno,feito_por,token) VALUES(?,?,?,?,?,?,?,?) RETURNING id",
+                        (u["id"], now(), json.dumps(final), odd, stake, int(round(stake * odd)), feito_por["id"] if feito_por else None, token)).fetchone()[0]
         tx(c, "aposta", feito_por["id"] if feito_por else u["id"], None, stake,
            f"Bilhete #{tid} de {u['nome']} ({len(final)} seleç{'ões' if len(final) > 1 else 'ão'}) odd {odd:.2f}" if feito_por else f"Bilhete #{tid} ({len(final)} seleç{'ões' if len(final) > 1 else 'ão'}) odd {odd:.2f}")
         c.execute("COMMIT")
     except Exception:
         c.execute("ROLLBACK"); raise
     cr = c.execute("SELECT nome, telefone FROM users WHERE id=?", (u["criado_por"],)).fetchone() if u["criado_por"] else None
-    return jsonify(ok=True, id=tid, odd=odd, valor=stake / 100, retorno=round(stake * odd) / 100, selecoes=final, usuario=u["nome"],
+    return jsonify(ok=True, id=tid, token=token, odd=odd, valor=stake / 100, retorno=round(stake * odd) / 100, selecoes=final, usuario=u["nome"],
                    cambista=dict(nome=cr["nome"], telefone=cr["telefone"] or "") if cr else None)
 def _estorno(c, t, tid, suf):
     if t["feito_por"]:       # bilhete vendido por cambista: devolve ao saldo dele e tira o fiado do cliente
@@ -1151,9 +1155,10 @@ def pin_criar():
         cand = str(secrets.randbelow(900000) + 100000)
         if not c.execute("SELECT 1 FROM pins WHERE code=?", (cand,)).fetchone(): code = cand; break
     if not code: return err("Tente de novo.", 503)
-    c.execute("INSERT INTO pins(code,criado,selecoes,valor) VALUES(?,?,?,?)", (code, t, json.dumps(sel), stake))
+    token = secrets.token_urlsafe(9)
+    c.execute("INSERT INTO pins(code,criado,selecoes,valor,token) VALUES(?,?,?,?,?)", (code, t, json.dumps(sel), stake, token))
     hits.append(t); _pin_hits[ip] = hits
-    return jsonify(ok=True, pin=code, odd=odd, valor=stake / 100, retorno=round(stake * odd) / 100, selecoes=final)
+    return jsonify(ok=True, pin=code, token=token, odd=odd, valor=stake / 100, retorno=round(stake * odd) / 100, selecoes=final)
 def _pin_load(c, code):
     p = c.execute("SELECT * FROM pins WHERE code=?", (str(code).strip(),)).fetchone()
     if not p or time.time() - p["criado"] > PIN_TTL: return None, "PIN não encontrado ou expirado. Peça ao cliente para gerar outro."
@@ -1184,14 +1189,52 @@ def pin_confirmar(u, code):
         if stake > c.execute("SELECT saldo FROM users WHERE id=? FOR UPDATE", (u["id"],)).fetchone()[0]:
             c.execute("ROLLBACK"); return err("Seu saldo é insuficiente para este bilhete. Peça recarga ao ADM.")
         c.execute("UPDATE users SET saldo=saldo-? WHERE id=?", (stake, u["id"]))
-        tid = c.execute("INSERT INTO tickets(user_id,data,selecoes,odd,valor,retorno,cliente) VALUES(?,?,?,?,?,?,?) RETURNING id",
-                        (u["id"], now(), json.dumps(final), odd, stake, int(round(stake * odd)), nome)).fetchone()[0]
+        tid = c.execute("INSERT INTO tickets(user_id,data,selecoes,odd,valor,retorno,cliente,token) VALUES(?,?,?,?,?,?,?,?) RETURNING id",
+                        (u["id"], now(), json.dumps(final), odd, stake, int(round(stake * odd)), nome, p["token"] or secrets.token_urlsafe(9))).fetchone()[0]
         tx(c, "aposta", u["id"], None, stake, f"Bilhete #{tid} {nome + ' ' if nome else ''}PIN {p['code']} ({len(final)} seleç{'ões' if len(final) > 1 else 'ão'}) odd {odd:.2f}")
         c.execute("UPDATE pins SET usado=1, usado_por=?, ticket_id=? WHERE code=?", (u["id"], tid, p["code"]))
         c.execute("COMMIT")
     except Exception:
         c.execute("ROLLBACK"); raise
-    return jsonify(ok=True, id=tid, odd=odd, valor=stake / 100, retorno=round(stake * odd) / 100, selecoes=final, usuario=nome or ("Cliente (PIN " + p["code"] + ")"))
+    tk = c.execute("SELECT token FROM tickets WHERE id=?", (tid,)).fetchone()[0]
+    return jsonify(ok=True, id=tid, token=tk, odd=odd, valor=stake / 100, retorno=round(stake * odd) / 100, selecoes=final, usuario=nome or ("Cliente (PIN " + p["code"] + ")"))
+
+# ---------------------------------------------------------------- bilhete publico: o cliente acompanha pelo link /b/<token> (sem login)
+def _sel_estado(s, lv):
+    if not lv or not lv.get("started") or s.get("mercado") not in ("1", "X", "2") or lv.get("home") is None or lv.get("away") is None: return "aguardando"
+    h, a = lv["home"], lv["away"]; atual = "1" if h > a else "2" if a > h else "X"
+    if lv.get("completed"): return "ganhou" if atual == s["mercado"] else "perdeu"
+    return "ganhando" if atual == s["mercado"] else "perdendo"
+@app.get("/api/bilhete/<token>")
+def bilhete_publico(token):
+    c = db(); t = c.execute("SELECT * FROM tickets WHERE token=?", (token,)).fetchone()
+    if not t:
+        p = c.execute("SELECT * FROM pins WHERE token=?", (token,)).fetchone()
+        if not p or time.time() - p["criado"] > PIN_TTL: return err("Bilhete não encontrado ou expirado.", 404)
+        if p["usado"]: return err("Bilhete já confirmado. Atualize a página.", 404)
+        try: final, odd = montar(json.loads(p["selecoes"]))
+        except ValueError as e: return err(str(e), 410)
+        return jsonify(ok=True, pendente=True, pin=p["code"], odd=odd, valor=p["valor"] / 100, retorno=round(p["valor"] * odd) / 100,
+                       selecoes=[dict(jogo=s["jogo"], palpite=s["palpite"], odd=s["odd"], home=s["home"], away=s["away"], placar=None, estado="aguardando") for s in final])
+    sels = json.loads(t["selecoes"]); tt = time.time(); live = {}
+    for k in {s["key"] for s in sels if s.get("key") and not s["key"].startswith("op_") and s.get("commence") and 0 <= tt - _ts(s["commence"]) < 6 * 3600}:
+        live.update(live_for_key(k))                    # cache de 30s: varios clientes olhando nao gastam creditos a mais
+    out = []
+    for s in sels:
+        lv = live.get(s["id"]); pl = {"h": lv.get("home"), "a": lv.get("away")} if lv and lv.get("started") else None
+        est = _sel_estado(s, lv)
+        if t["status"] != "aberto" and est in ("ganhando", "perdendo", "aguardando"): est = "ganhou" if t["status"] == "ganhou" else est
+        out.append(dict(jogo=s["jogo"], palpite=s.get("palpite") or s.get("mercado"), mercado=s.get("mercadoNome") or "", odd=s["odd"], home=s.get("home", ""), away=s.get("away", ""), placar=pl, estado=est))
+    return jsonify(ok=True, pendente=False, id=t["id"], cliente=t["cliente"] or "", status=t["status"], odd=t["odd"],
+                   valor=t["valor"] / 100, retorno=t["retorno"] / 100, selecoes=out)
+@app.get("/sw.js")
+def service_worker():                                  # na raiz para o escopo do PWA cobrir o site todo
+    r = send_from_directory(os.path.join(BASE, "static"), "sw.js", mimetype="application/javascript")
+    r.headers["Cache-Control"] = "no-cache"; return r
+@app.get("/b/<token>")
+def pagina_bilhete(token):
+    r = send_from_directory(os.path.join(BASE, "static"), "bilhete.html")
+    r.headers["Cache-Control"] = "no-cache, must-revalidate"; return r
 
 @app.get("/api/comissoes")
 @need("admin", "cambista")
