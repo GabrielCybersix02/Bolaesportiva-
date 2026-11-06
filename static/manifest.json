@@ -1,0 +1,13 @@
+{
+  "name": "Bola Esportiva",
+  "short_name": "Bola",
+  "description": "Acompanhe seu bilhete ao vivo",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#EEF3FB",
+  "theme_color": "#1445C7",
+  "icons": [
+    { "src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
