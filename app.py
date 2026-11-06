@@ -1236,6 +1236,64 @@ def pagina_bilhete(token):
     r = send_from_directory(os.path.join(BASE, "static"), "bilhete.html")
     r.headers["Cache-Control"] = "no-cache, must-revalidate"; return r
 
+# ---------------------------------------------------------------- caixa dos cambistas (so ADM): quem deve a quem
+# Conta do cambista (tudo que os clientes dele apostaram, PIN ou conta; bilhete anulado nao conta):
+#   deve ao ADM   = apostado - comissao            (dinheiro que ele recebeu dos clientes e repassa ao ADM)
+#   ADM paga      = premios dos bilhetes que bateram (o cambista paga o cliente e o ADM cobre)
+#   resultado     = deve ao ADM - premios - acertos ja registrados
+#       > 0  o cambista esta devendo ao ADM (vermelho)   |   < 0  o ADM deve pagar o cambista (verde)
+# acertos: guarda em `acertos` com user_id = id do cambista e cambista_id NULL (valor > 0 = cambista pagou o ADM; < 0 = ADM pagou o cambista)
+def _caixa_cam(c, cid):
+    r = c.execute("SELECT COUNT(*) AS n, COALESCE(SUM(t.valor),0) AS apostado, "
+                  "COALESCE(SUM(CASE WHEN t.status='aberto' THEN t.valor END),0) AS ab_valor, "
+                  "COALESCE(SUM(CASE WHEN t.status='aberto' THEN t.retorno END),0) AS ab_ret, "
+                  "COALESCE(SUM(CASE WHEN t.status='ganhou' THEN t.retorno END),0) AS premios, "
+                  "COUNT(CASE WHEN t.status='aberto' THEN 1 END) AS n_aberto, COUNT(CASE WHEN t.status='ganhou' THEN 1 END) AS n_ganhou " + _COM_BASE + " AND cam.id=?", (cid,)).fetchone()
+    apostado, premios, ab_ret = int(r["apostado"]), int(r["premios"]), int(r["ab_ret"])
+    comissao = int(round(apostado * COMISSAO)); deve = apostado - comissao
+    pago = int(c.execute("SELECT COALESCE(SUM(valor),0) FROM acertos WHERE user_id=? AND cambista_id IS NULL", (cid,)).fetchone()[0])
+    resultado = deve - premios - pago                         # centavos
+    saldo = int(c.execute("SELECT saldo FROM users WHERE id=?", (cid,)).fetchone()[0])
+    return dict(pct=COMISSAO_PCT, bilhetes=r["n"], abertos=r["n_aberto"], ganhos=r["n_ganhou"], apostado=apostado / 100, comissao=comissao / 100, deve=deve / 100,
+                premios=premios / 100, emAberto=int(r["ab_valor"]) / 100, seBater=ab_ret / 100, acertos=pago / 100, resultado=resultado / 100, saldo=saldo / 100)
+@app.get("/api/caixa-cambistas")
+@need("admin")
+def caixa_cambistas(u):
+    c = db()
+    try: cid = int(request.args.get("cambista") or 0)
+    except ValueError: cid = 0
+    if cid:
+        t = c.execute("SELECT nome FROM users WHERE id=? AND role='cambista'", (cid,)).fetchone()
+        if not t: return err("Cambista não encontrado.", 404)
+        rec = c.execute("SELECT t.id, t.data, (CASE WHEN x.role='cambista' THEN COALESCE(NULLIF(t.cliente,''),'Cliente (PIN)') ELSE x.nome END) AS nome, t.valor, t.retorno, t.status "
+                        + _COM_BASE + " AND cam.id=? ORDER BY t.id DESC LIMIT 40", (cid,)).fetchall()
+        return jsonify(ok=True, nome=t["nome"], **_caixa_cam(c, cid),
+                       recentes=[dict(id=str(r["id"]), data=r["data"], cliente=r["nome"], valor=r["valor"] / 100, retorno=r["retorno"] / 100, status=r["status"]) for r in rec])
+    lst = [dict(id=str(r["id"]), nome=r["nome"], ativo=bool(r["ativo"]), resultado=_caixa_cam(c, r["id"])["resultado"])
+           for r in c.execute("SELECT id, nome, ativo FROM users WHERE role='cambista' ORDER BY nome").fetchall()]
+    return jsonify(ok=True, cambistas=lst)
+@app.post("/api/caixa-cambistas/acerto")
+@need("admin")
+def caixa_acerto(u):
+    """Registra que o cambista pagou o que devia ao ADM (ou que o ADM pagou o cambista). valor opcional = pagamento parcial."""
+    d = request.get_json(silent=True) or {}; c = db()
+    try: cid = int(d.get("cambista"))
+    except (TypeError, ValueError): return err("Selecione um cambista.")
+    c.execute("BEGIN")
+    try:
+        t = c.execute("SELECT * FROM users WHERE id=? AND role='cambista' FOR UPDATE", (cid,)).fetchone()    # trava: dois cliques nao registram duas vezes
+        if not t: c.execute("ROLLBACK"); return err("Cambista não encontrado.")
+        net = int(round(_caixa_cam(c, cid)["resultado"] * 100))
+        if net == 0: c.execute("ROLLBACK"); return err("Este cambista não tem nada a acertar.")
+        v = cents(d["valor"]) if d.get("valor") not in (None, "") else abs(net)
+        if v <= 0 or v > abs(net): c.execute("ROLLBACK"); return err("Valor inválido. O acerto é de R$ %.2f." % (abs(net) / 100))
+        sinal = v if net > 0 else -v
+        c.execute("INSERT INTO acertos(data,user_id,cambista_id,valor,por) VALUES(?,?,NULL,?,?)", (now(), cid, sinal, u["id"]))
+        c.execute("COMMIT")
+    except Exception:
+        c.execute("ROLLBACK"); raise
+    return jsonify(ok=True, nome=t["nome"], valor=v / 100, sentido="recebido" if sinal > 0 else "pago")
+
 @app.get("/api/comissoes")
 @need("admin", "cambista")
 def comissoes(u):
