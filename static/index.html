@@ -209,6 +209,9 @@
                         <i class="fa-solid fa-wallet text-lg w-6 text-brand-textDark text-center"></i>
                         <span class="font-bold text-base text-brand-textDark">Caixa</span>
                     </button>
+                    <button onclick="navigateTo('caixacam')" data-roles="admin" class="w-full bg-emerald-600 text-white rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-md font-bold text-base active:scale-[0.99]">
+                        <i class="fa-solid fa-scale-balanced text-lg w-6 text-center"></i><span>Caixa dos Cambistas</span>
+                    </button>
                     <button onclick="navigateTo('bilhetes')" data-roles="usuario" class="w-full bg-brand-cardBg hover:bg-blue-100 rounded-sm px-4 py-3.5 flex items-center gap-3 text-left shadow-sm border border-gray-200">
                         <i class="fa-solid fa-receipt text-lg w-6 text-center"></i><span class="font-bold text-base">Meus Bilhetes</span>
                     </button>
@@ -389,6 +392,9 @@
                 </button>
                 <button onclick="navigateTo('comissao'); toggleSideMenu();" data-roles="admin" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
                     <i class="fa-solid fa-sack-dollar text-brand-blue w-5"></i> Comissões dos Cambistas
+                </button>
+                <button onclick="navigateTo('caixacam'); toggleSideMenu();" data-roles="admin" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
+                    <i class="fa-solid fa-scale-balanced text-brand-blue w-5"></i> Caixa dos Cambistas
                 </button>
                 <button onclick="openModal('regulamento'); toggleSideMenu();" class="w-full text-left p-3 hover:bg-gray-100 rounded font-semibold text-sm flex items-center gap-3">
                     <i class="fa-solid fa-file-contract text-brand-blue w-5"></i> Regulamento
@@ -819,10 +825,10 @@
             const totalOdd = betslip.length ? Math.round(betslip.reduce((a, c) => a * c.odd, 1) * 100) / 100 : 0;      // o servidor tambem arredonda a odd total em 2 casas
             const bruto = parseStake(document.getElementById('betslip-stake').value) * totalOdd;
             const win = capPremio(bruto), limitado = bruto > MAX_PREMIO;
+            const nt = document.getElementById('betslip-cap-note'); if (nt) nt.classList.toggle('hidden', !limitado);
             document.getElementById('betslip-total-odd').textContent = fmtOdd(totalOdd);
             document.getElementById('betslip-payout').textContent = money(win);
             document.getElementById('bar-possible-win').textContent = money(win);
-            const nt = document.getElementById('betslip-cap-note'); if (nt) nt.classList.toggle('hidden', !limitado);
             updateClientHint();
         }
 
@@ -1012,6 +1018,16 @@
             const T = document.getElementById('generic-title'), C = document.getElementById('generic-category'), B = document.getElementById('generic-content');
             const u = me(); const row = (a, b, cls) => `<div class="flex justify-between border-b pb-2"><span>${a}</span><span class="font-bold ${cls || ''}">${b}</span></div>`;
             const same = B.dataset.v === v; B.dataset.v = v;
+            if (v === 'caixacam') {
+                C.innerText = 'Financeiro (ADM)'; T.innerText = 'Caixa dos Cambistas';
+                if (!same) B.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">Carregando...</p>';
+                const l = await api('/caixa-cambistas'); if (!l.ok) { B.innerHTML = '<p class="text-xs text-red-600 font-semibold">' + esc(l.msg || 'Erro ao carregar.') + '</p>'; return; }
+                CC_LIST = l.cambistas;
+                if (!CC_LIST.some(x => x.id === CC_SEL)) CC_SEL = '';
+                B.innerHTML = '<div id="cc-pick"></div><div id="cc-det"></div>'; ccPick();
+                if (CC_SEL) loadCaixaCam(CC_SEL); else ccOpen(true);
+                return;
+            }
             if (v === 'comissao') {
                 const adm = u.role === 'admin';
                 C.innerText = 'Financeiro'; T.innerText = adm ? 'Comissões dos Cambistas' : 'Minha Comissão';
@@ -1044,6 +1060,65 @@
                     <p class="text-sm font-black text-brand-blue text-right">Odd total ${odd.toFixed(2)}</p>
                     <button onclick='addCombo(${JSON.stringify(fav.map(f => [f.m.id, f.m.home + " x " + f.m.away, f.k, f.o]))})' class="w-full bg-brand-blue text-white py-2 rounded font-extrabold text-xs uppercase">Adicionar ao bilhete</button>` : '<p class="text-xs text-gray-400 text-center">Sem jogos disponíveis agora.</p>';
             }
+        }
+        // ---------- ADM: Caixa dos Cambistas (verde = ADM paga, vermelho = cambista paga ao ADM) ----------
+        let CC_LIST = [], CC_SEL = '', CC_OPEN = false;
+        const ccTag = r => r < 0 ? `<b class="text-emerald-600">ADM paga ${money(-r)}</b>` : r > 0 ? `<b class="text-red-600">Deve ${money(r)}</b>` : '<b class="text-gray-500">Em dia</b>';
+        function ccPick() {
+            const box = document.getElementById('cc-pick'); if (!box) return;
+            const cur = CC_LIST.find(x => x.id === CC_SEL);
+            box.innerHTML = `<button onclick="ccOpen()" class="w-full flex items-center justify-between bg-brand-navy text-white rounded px-3 py-3 font-extrabold text-sm shadow">
+                    <span class="truncate"><i class="fa-solid fa-user-tie mr-2 text-yellow-400"></i>${cur ? esc(cur.nome) : 'Selecione o cambista'}</span><i class="fa-solid fa-chevron-${CC_OPEN ? 'up' : 'down'} text-xs"></i></button>`
+                + (CC_OPEN ? `<div class="border border-gray-200 rounded mt-1 overflow-hidden bg-white shadow-sm">${CC_LIST.length ? CC_LIST.map(x => `<button onclick="ccSelect('${x.id}')" class="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left text-xs border-t border-gray-100 first:border-t-0 active:bg-gray-50 ${x.id === CC_SEL ? 'bg-blue-50' : ''}">
+                        <b class="text-gray-800 truncate">${esc(x.nome)}${x.ativo ? '' : ' <span class="text-red-600 font-semibold">(bloqueado)</span>'}</b><span class="shrink-0">${ccTag(x.resultado)}</span></button>`).join('') : '<p class="text-xs text-gray-400 text-center py-3">Nenhum cambista cadastrado.</p>'}</div>` : '');
+        }
+        function ccOpen(force) { CC_OPEN = force === true ? true : !CC_OPEN; ccPick(); }
+        function ccSelect(id) { CC_SEL = id; CC_OPEN = false; ccPick(); loadCaixaCam(id); }
+        async function loadCaixaCam(id) {
+            const box = document.getElementById('cc-det'); if (!box) return;
+            box.innerHTML = '<p class="text-xs text-gray-400 text-center py-6">Carregando caixa...</p>';
+            const r = await api('/caixa-cambistas?cambista=' + id);
+            if (CC_SEL !== id || !document.getElementById('cc-det')) return;
+            if (!r.ok) { box.innerHTML = '<p class="text-xs text-red-600 font-semibold">' + esc(r.msg || 'Erro.') + '</p>'; return; }
+            box.innerHTML = caixaCamHtml(r, id);
+        }
+        function caixaCamHtml(r, id) {
+            const res = Math.round(r.resultado * 100) / 100;
+            const line = (a, b, cls, sub) => `<div class="flex justify-between items-start gap-2 py-1.5 text-xs border-t border-black/5 first:border-t-0"><span class="text-gray-700">${a}${sub ? `<span class="block text-[10px] text-gray-500">${sub}</span>` : ''}</span><b class="${cls} shrink-0">${b}</b></div>`;
+            const box = (cls, titulo, inner) => `<div class="rounded-lg border p-3 ${cls}"><p class="text-[11px] font-extrabold uppercase mb-1">${titulo}</p>${inner}</div>`;
+            const big = res > 0 ? ['bg-red-600', 'Cambista está devendo ao ADM', money(res)] : res < 0 ? ['bg-emerald-600', 'ADM deve pagar ao cambista', money(-res)] : ['bg-gray-500', 'Contas em dia', money(0)];
+            let h = `<div class="${big[0]} text-white rounded-xl p-4 text-center shadow-md mt-3"><span class="text-[11px] font-semibold opacity-90 block">${esc(r.nome)}</span><span class="text-[12px] font-bold block">${big[1]}</span><span class="text-3xl font-black">${big[2]}</span></div>`;
+            h += '<div class="space-y-2.5 mt-3">'
+                + box('bg-emerald-50 border-emerald-200 text-emerald-700', 'Verde • o ADM paga (bilhetes dos clientes que batem)',
+                    line('Prêmios dos bilhetes que já bateram', money(r.premios), 'text-emerald-700', r.ganhos + ' bilhete(s) premiado(s)')
+                    + line('Se todos os bilhetes em aberto baterem', money(r.seBater), 'text-emerald-700', r.abertos + ' em aberto • apostado neles ' + money(r.emAberto)))
+                + box('bg-red-50 border-red-200 text-red-700', 'Vermelho • o cambista paga ao ADM',
+                    line('Apostas dos clientes', money(r.apostado), 'text-red-700', r.bilhetes + ' bilhete(s), sem os anulados')
+                    + line('(−) Comissão do cambista (' + r.pct + '%)', '− ' + money(r.comissao), 'text-gray-600')
+                    + line('Deve repassar ao ADM', money(r.deve), 'text-red-700'))
+                + box('bg-gray-50 border-gray-200 text-gray-700', 'Conta final',
+                    line('Deve ao ADM', money(r.deve), 'text-red-700') + line('(−) Prêmios dos bilhetes que bateram', '− ' + money(r.premios), 'text-emerald-700')
+                    + line('(−) Acertos já registrados', '− ' + money(r.acertos), 'text-gray-600', r.acertos < 0 ? 'negativo = o ADM já pagou o cambista' : '')
+                    + line('<b>Resultado</b>', res > 0 ? 'Deve ' + money(res) : res < 0 ? 'ADM paga ' + money(-res) : 'Em dia', res > 0 ? 'text-red-700' : res < 0 ? 'text-emerald-700' : 'text-gray-500')
+                    + line('Saldo atual do cambista no sistema', money(r.saldo), 'text-gray-800')) + '</div>';
+            if (res !== 0) h += `<div class="mt-3 space-y-1.5 border border-gray-200 rounded-lg p-3"><label class="text-[11px] font-bold text-gray-600 uppercase block">Valor do acerto (R$)</label>
+                <input id="cc-valor" type="text" inputmode="decimal" value="${String(Math.abs(res).toFixed(2)).replace('.', ',')}" class="w-full p-2.5 border border-gray-300 rounded text-sm font-bold">
+                <button onclick="ccAcerto('${id}', ${res > 0 ? 1 : 0}, '${esc(r.nome).replace(/'/g, '')}')" class="w-full ${res > 0 ? 'bg-red-600' : 'bg-emerald-600'} text-white py-2.5 rounded font-extrabold text-xs uppercase">${res > 0 ? 'Recebi do cambista' : 'Paguei ao cambista'}</button>
+                <p class="text-[10px] text-gray-400">Pode ser parcial: o que sobrar continua na conta.</p></div>`;
+            h += sTitle('Últimos bilhetes dos clientes') + (r.recentes.length ? r.recentes.map(t => {
+                const win = t.status === 'ganhou', st = (ST[t.status] || ST.aberto);
+                return `<div class="flex items-center justify-between gap-2 py-2 border-t border-gray-100 text-[11px]"><span class="min-w-0"><b class="text-gray-800 block truncate">#${t.id} • ${esc(t.cliente)}</b><span class="text-gray-500">${new Date(t.data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} • apostou ${money(t.valor)} <span class="text-[10px] font-black px-1.5 py-0.5 rounded ${st[1]}">${st[0]}</span></span></span>
+                    <b class="shrink-0 ${win ? 'text-emerald-600' : t.status === 'aberto' ? 'text-emerald-600/70' : 'text-gray-400'}">${t.status === 'cancelado' ? '—' : (win ? 'ADM paga ' : t.status === 'aberto' ? 'Se bater ' : 'Prêmio ') + money(capPremio(t.retorno))}</b></div>`;
+            }).join('') : '<p class="text-xs text-gray-400 text-center py-3">Esse cambista ainda não tem bilhetes.</p>');
+            return h;
+        }
+        async function ccAcerto(id, recebi, nome) {
+            const v = parseValor('cc-valor'); if (v <= 0) { showToast('Informe um valor válido.', 'err'); return; }
+            if (!confirm(recebi ? `Confirmar que ${nome} pagou ${money(v)} ao ADM?` : `Confirmar que o ADM pagou ${money(v)} a ${nome}?`)) return;
+            const r = await api('/caixa-cambistas/acerto', { cambista: id, valor: v }); if (!r.ok) { showToast(r.msg, 'err'); return; }
+            showToast('Acerto registrado!');
+            const l = await api('/caixa-cambistas'); if (l.ok) { CC_LIST = l.cambistas; ccPick(); }
+            loadCaixaCam(id);
         }
         const sCard = (l, v) => `<div class="bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-center"><span class="text-[11px] text-gray-500 font-semibold block">${l}</span><b class="text-sm text-gray-900">${v}</b></div>`;
         const sTitle = t => `<p class="text-xs font-extrabold uppercase text-gray-700 pt-2">${t}</p>`;
