@@ -1,5 +1,5 @@
 """Bola Esportiva - backend Flask + Supabase (Postgres).  Rodar: python app.py   (producao: gunicorn app:app)"""
-import os, re, json, time, queue, threading, secrets, unicodedata
+import hashlib, os, re, json, time, queue, threading, secrets, unicodedata
 from concurrent.futures import ThreadPoolExecutor
 import psycopg2, psycopg2.extras
 from datetime import datetime, timezone, timedelta
@@ -384,6 +384,12 @@ def op_used():
         try: _op["n"] = int(kv_get("op:usage:" + m)[1] or 0)
         except Exception: _op["n"] = 0
         _op["month"] = m
+        try:                                                       # chave nova da OddsPapi = conta nova com cota cheia: zera o contador local sozinho
+            fp = hashlib.sha256(OP_KEY.encode()).hexdigest()[:12] if OP_KEY else ""
+            if fp and kv_get("op:keyfp")[1] != fp:
+                _op["n"] = 0; kv_set("op:usage:" + m, 0); kv_set("op:keyfp", fp); _op["err"] = ""; _op["fail"] = 0
+                print("oddspapi: chave nova detectada, contador de cota zerado.", flush=True)
+        except Exception as e: print("oddspapi: nao deu para checar a chave:", e, flush=True)
     return _op["n"]
 def _op_bump():
     op_used(); _op["n"] += 1
