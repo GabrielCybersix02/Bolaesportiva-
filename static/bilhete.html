@@ -35,6 +35,8 @@
 
 <script>
 const token = location.pathname.split('/').filter(Boolean).pop();
+const MAX_PREMIO = 20000;
+const cap = v => Math.min(Number(v || 0), MAX_PREMIO);
 const money = v => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const E = {
@@ -83,7 +85,7 @@ function draw(r) {
   const base = `<div class="bg-[#E6EDF9] rounded-lg p-2.5 text-xs text-gray-700 space-y-1">
       <div class="flex justify-between"><span>Odd total</span><b>${Number(r.odd).toFixed(2)}</b></div>
       <div class="flex justify-between"><span>Valor apostado</span><b>${money(r.valor)}</b></div>
-      <div class="flex justify-between text-sm"><span>Prêmio possível</span><b class="text-[#1445C7]">${money(r.retorno)}</b></div></div>`;
+      <div class="flex justify-between text-sm"><span>Prêmio possível</span><b class="text-[#1445C7]">${money(cap(r.retorno))}</b></div></div>`;
   document.getElementById('box').innerHTML = top + resumo(r) + sel + base;
 }
 let timer = null;
