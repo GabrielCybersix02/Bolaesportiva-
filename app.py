@@ -252,6 +252,51 @@ def toggle(u, uid):
     t = db().execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
     if not can_manage(u, t): return err("Sem permissão.", 403)
     db().execute("UPDATE users SET ativo=1-ativo WHERE id=?", (uid,)); return jsonify(ok=True)
+# ---------------------------------------------------------------- apagar conta (so ADM): tira o cambista/usuario e o historico dele.
+# A caixa dos cambistas e calculada na hora a partir dos bilhetes e acertos, entao apagar aqui ja a atualiza sozinha.
+def _ids_apagar(c, t):
+    ids = [t["id"]]
+    if t["role"] == "cambista": ids += [r[0] for r in c.execute("SELECT id FROM users WHERE criado_por=? AND role='usuario'", (t["id"],)).fetchall()]   # clientes do cambista vao junto
+    return ids
+def _resumo_apagar(c, t, ids):
+    ph = ",".join("?" * len(ids))
+    r = c.execute(f"SELECT COUNT(CASE WHEN status!='cancelado' THEN 1 END) AS n, COALESCE(SUM(CASE WHEN status!='cancelado' THEN valor END),0) AS apostado, "
+                  f"COALESCE(SUM(CASE WHEN status='ganhou' THEN retorno END),0) AS premios, COUNT(CASE WHEN status='aberto' THEN 1 END) AS abertos "
+                  f"FROM tickets WHERE user_id IN ({ph}) OR feito_por IN ({ph})", tuple(ids) * 2).fetchone()
+    out = dict(nome=t["nome"], role=t["role"], bilhetes=r["n"], apostado=int(r["apostado"]) / 100, premios=int(r["premios"]) / 100, abertos=r["abertos"], clientes=len(ids) - 1)
+    if t["role"] == "cambista": out["caixa"] = _caixa_cam(c, t["id"])["resultado"]        # >0 deve ao ADM | <0 ADM deve a ele | 0 em dia
+    return out
+@app.post("/api/contas/<int:uid>/apagar")
+@need("admin")
+def apagar_conta(u, uid):
+    """Sem confirmar=true so mostra o que vai ser apagado (e o efeito na caixa). Com confirmar=true apaga de verdade."""
+    d = request.get_json(silent=True) or {}; c = db()
+    def checa(t, ids):
+        if not t or t["role"] not in ("cambista", "usuario"): return "Conta não encontrada."
+        if t["id"] == u["id"]: return "Você não pode apagar a própria conta."
+        r = _resumo_apagar(c, t, ids)
+        if r["abertos"]: return f"{t['nome']} tem {r['abertos']} bilhete(s) em aberto. Espere terminar (ou anule os bilhetes) antes de apagar."
+        return r
+    t = c.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+    r = checa(t, _ids_apagar(c, t) if t else [])
+    if isinstance(r, str): return err(r)
+    if not d.get("confirmar"): return jsonify(ok=True, preview=True, **r)
+    c.execute("BEGIN")
+    try:
+        t = c.execute("SELECT * FROM users WHERE id=? FOR UPDATE", (uid,)).fetchone()          # trava: dois cliques nao apagam duas vezes
+        ids = _ids_apagar(c, t) if t else []
+        r = checa(t, ids)                                                                       # confere de novo dentro da transacao (ninguem apostou no meio)
+        if isinstance(r, str): c.execute("ROLLBACK"); return err(r)
+        ph = ",".join("?" * len(ids)); a1, a2 = tuple(ids), tuple(ids) * 2
+        c.execute(f"DELETE FROM tickets WHERE user_id IN ({ph}) OR feito_por IN ({ph})", a2)
+        c.execute(f"DELETE FROM acertos WHERE user_id IN ({ph}) OR cambista_id IN ({ph})", a2)
+        c.execute(f"DELETE FROM transactions WHERE de IN ({ph}) OR para IN ({ph})", a2)
+        c.execute(f"DELETE FROM pins WHERE usado_por IN ({ph})", a1)
+        c.execute(f"DELETE FROM users WHERE id IN ({ph})", a1)
+        c.execute("COMMIT")
+    except Exception:
+        c.execute("ROLLBACK"); raise
+    return jsonify(ok=True, apagado=True, **r)
 @app.post("/api/reset-senha")
 @need("admin", "cambista")
 def reset_senha(u):
@@ -448,16 +493,19 @@ def op_refresh():
     for f in fx: cnt[f.get("tournamentId")] = cnt.get(f.get("tournamentId"), 0) + 1
     tids = sorted(cnt, key=lambda k: -cnt[k]); batches = [tids[i:i + 5] for i in range(0, len(tids), 5)]
     batches = batches[:max(0, OP_LIMIT - OP_RESERVE - op_used())]    # nunca estoura a cota: o que nao couber espera o proximo ciclo
-    prices = {}
+    prices = {}; sem_odds = 0
     for b in batches:
-        data = op_get("/odds-by-tournaments", reserve=OP_RESERVE, tournamentIds=",".join(map(str, b)), bookmaker=bks[0])
+        try: data = op_get("/odds-by-tournaments", reserve=OP_RESERVE, tournamentIds=",".join(map(str, b)), bookmaker=bks[0])
+        except RuntimeError as e:
+            if "OddsPapi 404" in str(e): sem_odds += 1; continue       # lote sem odds dessa casa: pula e segue com os outros, em vez de perder a atualizacao toda
+            raise
         for f in _as_list(data):
             pz = _op_prices(f, bks) if isinstance(f, dict) else None
             if pz: prices[f.get("fixtureId")] = pz
     out = [dict(id="op:" + f["fixtureId"], home=f["participant1Name"], away=f["participant2Name"], commence=f["startTime"],
                 league=f.get("tournamentName") or "Outros", key="op_%s_%s" % (f.get("categorySlug", ""), f.get("tournamentSlug", "")),
                 grupo="futebol", odds=prices[f["fixtureId"]]) for f in fx if f["fixtureId"] in prices]
-    _op["info"] = dict(fixtures_com_odds=len(fx), campeonatos=len(tids), lotes=len(batches), jogos_com_preco_1x2=len(out), casas=bks, chamadas=op_used() - used0)
+    _op["info"] = dict(fixtures_com_odds=len(fx), campeonatos=len(tids), lotes=len(batches), jogos_com_preco_1x2=len(out), casas=bks, lotes_sem_odds=sem_odds, chamadas=op_used() - used0)
     _op["cost"] = max(2, op_used() - used0)
     if not out: raise RuntimeError(f"OddsPapi devolveu {len(fx)} jogos mas nenhum com odds 1X2 (casas: {','.join(bks)}).")
     _op.update(ts=time.time(), ev=out, err="")
