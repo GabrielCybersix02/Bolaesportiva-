@@ -15,6 +15,8 @@ ODDS_BASE = "https://api.the-odds-api.com/v4"
 CACHE_MIN = int(os.environ.get("ODDS_CACHE_MINUTES", "15"))
 COMISSAO_PCT = float(os.environ.get("COMISSAO_PCT", "10"))      # % do cambista sobre TODO valor apostado pelos clientes dele
 COMISSAO = COMISSAO_PCT / 100
+MAX_PREMIO = int(float(os.environ.get("MAX_PREMIO_REAIS", "20000")) * 100)   # teto do premio por bilhete, em centavos (padrao R$ 20.000)
+def premio(valor, odd): return min(int(round(valor * odd)), MAX_PREMIO)       # premio = aposta x odd, nunca acima do teto
 GROUPS = {"futebol": "Soccer", "basquete": "Basketball", "tenis": "Tennis", "mma": "Mixed Martial Arts"}
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
@@ -801,14 +803,14 @@ def bet(u):
             c.execute("UPDATE users SET saldo=saldo-? WHERE id=?", (stake, u["id"]))
         token = secrets.token_urlsafe(9)
         tid = c.execute("INSERT INTO tickets(user_id,data,selecoes,odd,valor,retorno,feito_por,token) VALUES(?,?,?,?,?,?,?,?) RETURNING id",
-                        (u["id"], now(), json.dumps(final), odd, stake, int(round(stake * odd)), feito_por["id"] if feito_por else None, token)).fetchone()[0]
+                        (u["id"], now(), json.dumps(final), odd, stake, premio(stake, odd), feito_por["id"] if feito_por else None, token)).fetchone()[0]
         tx(c, "aposta", feito_por["id"] if feito_por else u["id"], None, stake,
            f"Bilhete #{tid} de {u['nome']} ({len(final)} seleç{'ões' if len(final) > 1 else 'ão'}) odd {odd:.2f}" if feito_por else f"Bilhete #{tid} ({len(final)} seleç{'ões' if len(final) > 1 else 'ão'}) odd {odd:.2f}")
         c.execute("COMMIT")
     except Exception:
         c.execute("ROLLBACK"); raise
     cr = c.execute("SELECT nome, telefone FROM users WHERE id=?", (u["criado_por"],)).fetchone() if u["criado_por"] else None
-    return jsonify(ok=True, id=tid, token=token, odd=odd, valor=stake / 100, retorno=round(stake * odd) / 100, selecoes=final, usuario=u["nome"],
+    return jsonify(ok=True, id=tid, token=token, odd=odd, valor=stake / 100, retorno=premio(stake, odd) / 100, selecoes=final, usuario=u["nome"],
                    cambista=dict(nome=cr["nome"], telefone=cr["telefone"] or "") if cr else None)
 def _estorno(c, t, tid, suf):
     if t["feito_por"]:       # bilhete vendido por cambista: devolve ao saldo dele e tira o fiado do cliente
@@ -1019,6 +1021,86 @@ def op_result(fid):
         except Exception: pass
         return res
     return None
+# ---- SportAPI: resultado dos jogos de futebol (plano gratis: 2.000 chamadas/dia). Chave SO na variavel de ambiente SPORTAPI_KEY.
+SA_KEY = os.environ.get("SPORTAPI_KEY", "").strip().strip("\"'").strip()
+SA_BASE = os.environ.get("SPORTAPI_BASE", "https://sportapi.ai/api").rstrip("/")
+SA_HEADER = os.environ.get("SPORTAPI_HEADER", "").strip()            # nome do cabecalho da chave; vazio = tenta X-API-Key e depois Authorization: Bearer
+SA_DAILY = int(os.environ.get("SPORTAPI_DAILY_MAX", "1500"))         # trava de seguranca (o plano gratis permite 2.000/dia)
+SA_TTL = 240
+_sa = {"cache": {}, "hdr": None, "err": "", "n": 0, "day": ""}
+_sa_lock = threading.Lock()
+def sa_day(date, ttl=SA_TTL):
+    """Jogos de futebol de uma data (AAAA-MM-DD, UTC) segundo a SportAPI; a lista fica guardada 4 min (1 min no placar ao vivo)."""
+    c = _sa["cache"].get(date)
+    if c and time.time() - c[0] < ttl: return c[1]
+    if not SA_KEY: raise RuntimeError("SPORTAPI_KEY não definida.")
+    with _sa_lock:
+        d0 = time.strftime("%Y-%m-%d", time.gmtime())
+        if _sa["day"] != d0: _sa["day"], _sa["n"] = d0, 0
+        names = [SA_HEADER] if SA_HEADER else [_sa["hdr"]] if _sa["hdr"] else ["X-API-Key", "Authorization"]
+        last = None
+        for name in names:
+            if _sa["n"] >= SA_DAILY: raise RuntimeError("Limite diário de segurança da SportAPI atingido.")
+            hdr = {**UA, name: ("Bearer " + SA_KEY) if name.lower() == "authorization" else SA_KEY}
+            _sa["n"] += 1
+            try: r = requests.get(f"{SA_BASE}/fixtures/date/{date}", headers=hdr, timeout=25)
+            except Exception as e: raise RuntimeError(("SportAPI fora do ar: " + str(e))[:150].replace(SA_KEY, "***"))
+            if r.status_code in (401, 403): last = r.status_code; continue
+            if not r.ok: raise RuntimeError(f"SportAPI {r.status_code}: {r.text[:200]}".replace(SA_KEY, "***"))
+            d = r.json(); lst = d.get("data") if isinstance(d, dict) else None
+            if not isinstance(lst, list): raise RuntimeError("SportAPI: resposta sem a lista 'data'.")
+            _sa["hdr"], _sa["err"] = name, ""
+            if len(_sa["cache"]) > 12: _sa["cache"].pop(min(_sa["cache"], key=lambda k: _sa["cache"][k][0]), None)
+            _sa["cache"][date] = (time.time(), lst); return lst
+        raise RuntimeError(f"SportAPI recusou a chave ({last}). Veja o nome do cabeçalho na documentação e defina SPORTAPI_HEADER no Render.")
+def sa_find(s_, ttl=SA_TTL):
+    """Acha o jogo da selecao na SportAPI: os DOIS times precisam bater e o horario ficar a menos de 3h."""
+    t = _ts(s_["commence"]); hn, an = norm(s_.get("home", "")), norm(s_.get("away", ""))
+    if not hn or not an: return None
+    d = datetime.fromtimestamp(t, timezone.utc).date()
+    for off in (0, -1, 1):
+        lst = sa_day((d + timedelta(days=off)).isoformat(), ttl)
+        for f in lst:
+            try: k = _ts(f.get("kickoff_utc") or "")
+            except Exception: continue
+            if abs(k - t) > 3 * 3600: continue
+            if any(_same(hn, norm(f.get(x) or "")) for x in ("home_team", "home_short")) and any(_same(an, norm(f.get(x) or "")) for x in ("away_team", "away_short")): return f
+    return None
+def sa_verdict(s_):
+    """'won' | 'lost' | None. So decide resultado final (1/X/2) de jogo com status FT e dados coerentes; o resto fica para os outros metodos ou para o ADM."""
+    try:
+        mk = s_.get("mercado")
+        if not SA_KEY or mk not in ("1", "X", "2") or not s_.get("commence"): return None
+        f = sa_find(s_)
+        if not f or f.get("status") != "FT" or f.get("penalty_home") is not None or f.get("penalty_away") is not None: return None
+        h, a = f.get("home_score"), f.get("away_score")
+        if not all(isinstance(v, int) and not isinstance(v, bool) for v in (h, a)): return None
+        out = "1" if h > a else "2" if a > h else "X"
+        w = {"home": "1", "away": "2", "draw": "X"}.get(f.get("winner"))
+        if w and w != out: return None                  # a propria API se contradiz: nao arrisca, fica para o ADM
+        return "won" if out == mk else "lost"
+    except Exception as e:
+        _sa["err"] = str(e)[:300]; print("sportapi falhou:", e, flush=True); return None
+def sa_live(s_):
+    """Placar atual do jogo da selecao, no mesmo formato do live_for_key (home, away, started, completed). None = sem dado confiavel."""
+    try:
+        f = sa_find(s_, 60)
+        if not f: return None
+        h, a, st = f.get("home_score"), f.get("away_score"), f.get("status")
+        if st == "Scheduled" or not all(isinstance(v, int) and not isinstance(v, bool) for v in (h, a)): return None
+        return dict(home=h, away=a, started=True, completed=(st == "FT"), minute=f.get("minute") if st == "LIVE" else None)
+    except Exception as e:
+        _sa["err"] = str(e)[:300]; return None
+@app.get("/api/admin/sportapi")
+@need("admin")
+def sa_status(u):                                         # diagnostico: abra /api/admin/sportapi?testar=1 logado como admin
+    out = dict(ok=True, chave_definida=bool(SA_KEY), tamanho_chave=len(SA_KEY), chamadas_hoje=_sa["n"], limite_dia=SA_DAILY, cabecalho=_sa["hdr"], ultimo_erro=_sa["err"])
+    if request.args.get("testar") == "1":
+        try:
+            lst = sa_day(time.strftime("%Y-%m-%d", time.gmtime()))
+            out.update(jogos_hoje=len(lst), encerrados=sum(1 for f in lst if f.get("status") == "FT"), ao_vivo=sum(1 for f in lst if f.get("status") == "LIVE"), cabecalho=_sa["hdr"])
+        except Exception as e: out.update(ok=False, erro=str(e)[:300])
+    return jsonify(out)
 def sel_verdict(s_):
     """'won' | 'lost' | None (ainda sem resultado confiavel). So decide com jogo encerrado de verdade."""
     if not s_.get("commence") or time.time() - _ts(s_["commence"]) < 100 * 60: return None
@@ -1027,6 +1109,10 @@ def sel_verdict(s_):
         try: _, mid, oid = str(mk).split(":")
         except ValueError: return None
         return {"WIN": "won", "LOSE": "lost"}.get(op_outcome_result(str(s_.get("fid") or ""), mid, oid)) if s_.get("fid") else None
+    if SA_KEY and mk in ("1", "X", "2") and (sid.startswith("op:") or key.startswith("soccer_")):      # resultado pela SportAPI (gratis): poupa a cota da OddsPapi
+        v = sa_verdict(s_)
+        if v: return v
+        if sid.startswith("op:") and time.time() - _ts(s_["commence"]) < 8 * 3600: return None          # ainda sem resultado la: espera, sem gastar chamada da OddsPapi
     if sid.startswith("op:"):
         r = (op_result(sid[3:]) or {}).get(mk)
         return {"WIN": "won", "LOSE": "lost"}.get(r)
@@ -1158,7 +1244,7 @@ def pin_criar():
     token = secrets.token_urlsafe(9)
     c.execute("INSERT INTO pins(code,criado,selecoes,valor,token) VALUES(?,?,?,?,?)", (code, t, json.dumps(sel), stake, token))
     hits.append(t); _pin_hits[ip] = hits
-    return jsonify(ok=True, pin=code, token=token, odd=odd, valor=stake / 100, retorno=round(stake * odd) / 100, selecoes=final)
+    return jsonify(ok=True, pin=code, token=token, odd=odd, valor=stake / 100, retorno=premio(stake, odd) / 100, selecoes=final)
 def _pin_load(c, code):
     p = c.execute("SELECT * FROM pins WHERE code=?", (str(code).strip(),)).fetchone()
     if not p or time.time() - p["criado"] > PIN_TTL: return None, "PIN não encontrado ou expirado. Peça ao cliente para gerar outro."
@@ -1171,7 +1257,7 @@ def pin_ver(u, code):
     if not p: return err(m, 404)
     try: final, odd = montar(json.loads(p["selecoes"]))
     except ValueError as e: return err(str(e))
-    return jsonify(ok=True, pin=p["code"], odd=odd, valor=p["valor"] / 100, retorno=round(p["valor"] * odd) / 100, selecoes=final, saldo=u["saldo"] / 100)
+    return jsonify(ok=True, pin=p["code"], odd=odd, valor=p["valor"] / 100, retorno=premio(p["valor"], odd) / 100, selecoes=final, saldo=u["saldo"] / 100)
 @app.post("/api/pin/<code>/confirmar")
 @need("cambista")
 def pin_confirmar(u, code):
@@ -1190,14 +1276,14 @@ def pin_confirmar(u, code):
             c.execute("ROLLBACK"); return err("Seu saldo é insuficiente para este bilhete. Peça recarga ao ADM.")
         c.execute("UPDATE users SET saldo=saldo-? WHERE id=?", (stake, u["id"]))
         tid = c.execute("INSERT INTO tickets(user_id,data,selecoes,odd,valor,retorno,cliente,token) VALUES(?,?,?,?,?,?,?,?) RETURNING id",
-                        (u["id"], now(), json.dumps(final), odd, stake, int(round(stake * odd)), nome, p["token"] or secrets.token_urlsafe(9))).fetchone()[0]
+                        (u["id"], now(), json.dumps(final), odd, stake, premio(stake, odd), nome, p["token"] or secrets.token_urlsafe(9))).fetchone()[0]
         tx(c, "aposta", u["id"], None, stake, f"Bilhete #{tid} {nome + ' ' if nome else ''}PIN {p['code']} ({len(final)} seleç{'ões' if len(final) > 1 else 'ão'}) odd {odd:.2f}")
         c.execute("UPDATE pins SET usado=1, usado_por=?, ticket_id=? WHERE code=?", (u["id"], tid, p["code"]))
         c.execute("COMMIT")
     except Exception:
         c.execute("ROLLBACK"); raise
     tk = c.execute("SELECT token FROM tickets WHERE id=?", (tid,)).fetchone()[0]
-    return jsonify(ok=True, id=tid, token=tk, odd=odd, valor=stake / 100, retorno=round(stake * odd) / 100, selecoes=final, usuario=nome or ("Cliente (PIN " + p["code"] + ")"))
+    return jsonify(ok=True, id=tid, token=tk, odd=odd, valor=stake / 100, retorno=premio(stake, odd) / 100, selecoes=final, usuario=nome or ("Cliente (PIN " + p["code"] + ")"))
 
 # ---------------------------------------------------------------- bilhete publico: o cliente acompanha pelo link /b/<token> (sem login)
 def _sel_estado(s, lv):
@@ -1214,14 +1300,20 @@ def bilhete_publico(token):
         if p["usado"]: return err("Bilhete já confirmado. Atualize a página.", 404)
         try: final, odd = montar(json.loads(p["selecoes"]))
         except ValueError as e: return err(str(e), 410)
-        return jsonify(ok=True, pendente=True, pin=p["code"], odd=odd, valor=p["valor"] / 100, retorno=round(p["valor"] * odd) / 100,
+        return jsonify(ok=True, pendente=True, pin=p["code"], odd=odd, valor=p["valor"] / 100, retorno=premio(p["valor"], odd) / 100,
                        selecoes=[dict(jogo=s["jogo"], palpite=s["palpite"], odd=s["odd"], home=s["home"], away=s["away"], placar=None, estado="aguardando") for s in final])
-    sels = json.loads(t["selecoes"]); tt = time.time(); live = {}
-    for k in {s["key"] for s in sels if s.get("key") and not s["key"].startswith("op_") and s.get("commence") and 0 <= tt - _ts(s["commence"]) < 6 * 3600}:
+    sels = json.loads(t["selecoes"]); tt = time.time(); live = {}; sa_lv = {}
+    if SA_KEY:                                          # placar pela SportAPI (gratis; lista da data guardada 1 min, varios clientes olhando gastam 1 chamada so)
+        for s in sels:
+            if s.get("id") and s.get("commence") and str(s.get("key", "")).startswith(("soccer_", "op_")) and 0 <= tt - _ts(s["commence"]) < 6 * 3600:
+                v = sa_live(s)
+                if v: sa_lv[s["id"]] = v
+    for k in {s["key"] for s in sels if s.get("key") and not s["key"].startswith("op_") and s["id"] not in sa_lv and s.get("commence") and 0 <= tt - _ts(s["commence"]) < 6 * 3600}:
         live.update(live_for_key(k))                    # cache de 30s: varios clientes olhando nao gastam creditos a mais
+    live.update(sa_lv)
     out = []
     for s in sels:
-        lv = live.get(s["id"]); pl = {"h": lv.get("home"), "a": lv.get("away")} if lv and lv.get("started") else None
+        lv = live.get(s["id"]); pl = {"h": lv.get("home"), "a": lv.get("away"), "m": lv.get("minute"), "fim": bool(lv.get("completed"))} if lv and lv.get("started") else None
         est = _sel_estado(s, lv)
         if t["status"] != "aberto" and est in ("ganhando", "perdendo", "aguardando"): est = "ganhou" if t["status"] == "ganhou" else est
         out.append(dict(jogo=s["jogo"], palpite=s.get("palpite") or s.get("mercado"), mercado=s.get("mercadoNome") or "", odd=s["odd"], home=s.get("home", ""), away=s.get("away", ""), placar=pl, estado=est))
