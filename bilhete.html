@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meu Bilhete • Bola Esportiva</title>
+<meta name="theme-color" content="#1445C7">
+<meta name="robots" content="noindex">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+<link rel="apple-touch-icon" href="/static/icon.svg">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background: #EEF3FB; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+  .pulse { animation: p 1.4s ease-in-out infinite; } @keyframes p { 50% { opacity: .35; } }
+</style>
+</head>
+<body class="min-h-screen flex justify-center">
+<div class="w-full max-w-md bg-white min-h-screen shadow-2xl">
+  <header class="bg-gradient-to-br from-[#2F6BFF] to-[#1445C7] text-white px-4 h-[56px] flex items-center justify-between sticky top-0 z-10 shadow">
+    <a href="/" class="flex items-center gap-2.5">
+      <img src="/static/icon.svg" alt="" class="w-8 h-8 rounded-lg">
+      <span class="leading-none"><span class="block text-[16px] font-black tracking-wide">BOLA</span><span class="block text-[9px] font-bold tracking-[0.28em] text-blue-100">ESPORTIVA</span></span>
+    </a>
+    <button onclick="load(true)" aria-label="Atualizar" class="text-lg px-2"><span id="spin">&#8635;</span></button>
+  </header>
+
+  <main class="p-3 space-y-2.5">
+    <div id="box" class="space-y-2.5"><p class="text-center text-gray-400 text-sm py-10">Carregando bilhete...</p></div>
+    <p id="upd" class="text-center text-[11px] text-gray-400"></p>
+    <button id="inst" onclick="instalar()" class="hidden w-full bg-[#0A1F4F] text-white py-2.5 rounded font-bold text-xs uppercase">Instalar como aplicativo</button>
+    <p class="text-center text-[10px] text-gray-400 font-semibold pt-3">Bola Esportiva • Proibido para menores de 18 anos • Jogue com responsabilidade</p>
+  </main>
+</div>
+
+<script>
+const token = location.pathname.split('/').filter(Boolean).pop();
+const MAX_PREMIO = 20000;
+const cap = v => Math.min(Number(v || 0), MAX_PREMIO);
+const money = v => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const E = {
+  aguardando: ['Aguardando', 'bg-gray-200 text-gray-700'],
+  ganhando:   ['Ganhando', 'bg-emerald-100 text-emerald-700'],
+  perdendo:   ['Perdendo', 'bg-red-100 text-red-700'],
+  ganhou:     ['Ganhou ✔', 'bg-emerald-600 text-white'],
+  perdeu:     ['Perdeu ✖', 'bg-red-600 text-white']
+};
+const STATUS = {
+  aberto:    ['Em aberto', 'bg-[#0A1F4F] text-white'],
+  ganhou:    ['BILHETE PREMIADO 🎉', 'bg-emerald-600 text-white'],
+  perdeu:    ['Bilhete perdido', 'bg-red-600 text-white'],
+  cancelado: ['Bilhete cancelado (valor devolvido)', 'bg-gray-500 text-white']
+};
+// abre a busca do jogo no app/site de placar que o cliente ja usa
+const q = s => encodeURIComponent(s.home && s.away ? s.home + ' x ' + s.away : s.jogo);
+const links = s => `<div class="flex gap-1.5 pt-1.5">
+  <a target="_blank" rel="noopener" href="https://www.sofascore.com/search?q=${q(s)}" class="text-[10px] font-bold text-[#1445C7] border border-[#1445C7]/30 rounded px-2 py-0.5">SofaScore</a>
+  <a target="_blank" rel="noopener" href="https://www.google.com/search?q=${q(s)}+placar" class="text-[10px] font-bold text-[#1445C7] border border-[#1445C7]/30 rounded px-2 py-0.5">Google</a>
+  <a target="_blank" rel="noopener" href="https://www.flashscore.com.br/search/?q=${q(s)}" class="text-[10px] font-bold text-[#1445C7] border border-[#1445C7]/30 rounded px-2 py-0.5">Flashscore</a></div>`;
+
+function resumo(r) {
+  if (r.pendente) return '';
+  const n = r.selecoes.length, ok = r.selecoes.filter(s => s.estado === 'ganhando' || s.estado === 'ganhou').length;
+  const ruim = r.selecoes.filter(s => s.estado === 'perdendo' || s.estado === 'perdeu').length;
+  if (r.status !== 'aberto') return '';
+  if (ruim) return `<p class="text-center text-xs font-bold text-red-600">${ruim} palpite(s) perdendo. Ainda dá tempo de virar se o jogo não acabou.</p>`;
+  if (ok === n) return `<p class="text-center text-xs font-bold text-emerald-600">Todos os palpites estão batendo agora!</p>`;
+  return `<p class="text-center text-xs font-semibold text-gray-500">${ok} de ${n} palpites batendo agora.</p>`;
+}
+function draw(r) {
+  const top = r.pendente
+    ? `<div class="bg-yellow-100 text-yellow-800 rounded p-2.5 text-center font-bold text-sm">Aguardando o cambista confirmar o PIN <span class="text-lg font-black tracking-widest">${esc(r.pin)}</span><br><span class="text-[11px] font-semibold">Envie o PIN ao seu cambista. Esta página atualiza sozinha.</span></div>`
+    : `<div class="${STATUS[r.status][1]} rounded p-2.5 text-center font-bold text-sm">Bilhete #${esc(r.id)}${r.cliente ? ' • ' + esc(r.cliente) : ''}<br><span class="text-[13px]">${STATUS[r.status][0]}</span></div>`;
+  const sel = r.selecoes.map(s => {
+    const e = E[s.estado] || E.aguardando, live = s.estado === 'ganhando' || s.estado === 'perdendo';
+    return `<div class="border border-gray-200 rounded-lg p-2.5">
+      <div class="flex justify-between items-start gap-2">
+        <div class="min-w-0"><b class="block text-[14px] text-gray-900">${esc(s.jogo)}</b>
+          <span class="text-xs text-gray-600">${s.mercado ? esc(s.mercado) + ': ' : 'Palpite: '}<b>${esc(s.palpite)}</b> • odd ${Number(s.odd).toFixed(2)}</span></div>
+        <span class="shrink-0 text-[11px] font-black px-2 py-1 rounded ${e[1]} ${live ? 'pulse' : ''}">${e[0]}</span></div>
+      ${s.placar ? `<div class="mt-1.5 bg-[#0A1F4F] text-white rounded px-2 py-1.5 text-center text-sm font-black">${esc(s.home)} <span class="text-red-400 mx-1">${s.placar.h ?? 0} x ${s.placar.a ?? 0}</span> ${esc(s.away)}</div>` : ''}
+      ${links(s)}</div>`;
+  }).join('');
+  const base = `<div class="bg-[#E6EDF9] rounded-lg p-2.5 text-xs text-gray-700 space-y-1">
+      <div class="flex justify-between"><span>Odd total</span><b>${Number(r.odd).toFixed(2)}</b></div>
+      <div class="flex justify-between"><span>Valor apostado</span><b>${money(r.valor)}</b></div>
+      <div class="flex justify-between text-sm"><span>Prêmio possível</span><b class="text-[#1445C7]">${money(cap(r.retorno))}</b></div></div>`;
+  document.getElementById('box').innerHTML = top + resumo(r) + sel + base;
+}
+let timer = null;
+async function load(manual) {
+  const sp = document.getElementById('spin'); if (manual) sp.classList.add('pulse');
+  let r; try { r = await fetch('/api/bilhete/' + encodeURIComponent(token), { cache: 'no-store' }).then(x => x.json()); }
+  catch (e) { r = { ok: false, msg: 'Sem conexão. Tentando de novo...' }; }
+  sp.classList.remove('pulse');
+  if (!r.ok) {
+    if (!document.getElementById('box').dataset.ok) document.getElementById('box').innerHTML = `<p class="text-center text-red-600 font-bold text-sm py-10">${esc(r.msg)}</p>`;
+    return;
+  }
+  document.getElementById('box').dataset.ok = 1; draw(r);
+  document.getElementById('upd').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  clearTimeout(timer);
+  if (r.pendente || r.status === 'aberto') timer = setTimeout(load, 30000);     // bilhete encerrado nao precisa mais atualizar
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+load();
+
+// ---- PWA: instalar como aplicativo
+let dp = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); dp = e; document.getElementById('inst').classList.remove('hidden'); });
+async function instalar() { if (!dp) return; dp.prompt(); await dp.userChoice; dp = null; document.getElementById('inst').classList.add('hidden'); }
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+</script>
+</body>
+</html>
