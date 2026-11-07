@@ -1450,6 +1450,21 @@
             sessionId = null; showLogin(); showToast('Banco resetado. Entre com admin / admin123.', 'warn');
         }
         function toggleAtivo(id) { act('/toggle/' + id, {}); }
+        // Apagar conta: 1) o servidor mostra o que vai sumir e o efeito na Caixa; 2) depois de confirmar, apaga e tudo recalcula
+        async function apagarConta(id) {
+            const p = await api('/contas/' + id + '/apagar', { confirmar: false });
+            if (!p.ok) { showToast(p.msg, 'err'); return; }
+            let m = `Apagar ${p.nome}?\n\n`;
+            if (p.role === 'cambista') {
+                m += `• ${p.clientes} cliente(s) dele também serão apagados.\n`;
+                m += p.caixa > 0 ? `• Na Caixa ele DEVE ${money(p.caixa)} ao ADM. Esse valor vai sumir.\n`
+                    : p.caixa < 0 ? `• Na Caixa o ADM DEVE ${money(-p.caixa)} a ele. Esse valor vai sumir.\n` : '• Na Caixa ele está em dia.\n';
+            }
+            m += p.bilhetes ? `• ${p.bilhetes} bilhete(s) (apostado ${money(p.apostado)}, prêmios ${money(p.premios)}) serão apagados e saem da Caixa.\n` : '• Não tem bilhetes.\n';
+            if (!confirm(m + '\nIsso não pode ser desfeito.')) return;
+            if (CC_SEL === id) CC_SEL = '';
+            await act('/contas/' + id + '/apagar', { confirmar: true }, 'Conta apagada. A Caixa foi atualizada.');
+        }
 
         // ---------- Painel ----------
         function renderPainel() {
@@ -1471,7 +1486,7 @@
                 <div><p class="font-bold text-gray-800">${esc(c.nome)} <span class="text-gray-400 font-semibold">@${esc(c.login)}</span>${c.ativo ? '' : ' <span class="text-red-600">(bloqueado)</span>'}</p>
                 <p class="text-[10px] text-gray-500">Saldo: <b>${money(c.saldo)}</b>${c.role === 'cambista' ? ' • ' + DB.users.filter(x => x.criadoPor === c.id).length + ' usuários' : ''}</p>
 </div>
-                <div class="flex gap-1">${(c.role === 'cambista' && c.ativo) ? `<button onclick="quickPick('ab-cambista','${c.id}','ab-valor')" class="text-[10px] font-black uppercase px-2 py-1 rounded bg-emerald-600 text-white">+ Saldo</button>` : ''}<button onclick="toggleAtivo('${c.id}')" class="text-[10px] font-black uppercase px-2 py-1 rounded ${c.ativo ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}">${c.ativo ? 'Bloquear' : 'Ativar'}</button></div></div>`;
+                <div class="flex gap-1">${(c.role === 'cambista' && c.ativo) ? `<button onclick="quickPick('ab-cambista','${c.id}','ab-valor')" class="text-[10px] font-black uppercase px-2 py-1 rounded bg-emerald-600 text-white">+ Saldo</button>` : ''}<button onclick="toggleAtivo('${c.id}')" class="text-[10px] font-black uppercase px-2 py-1 rounded ${c.ativo ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}">${c.ativo ? 'Bloquear' : 'Ativar'}</button><button onclick="apagarConta('${c.id}')" class="text-[10px] font-black uppercase px-2 py-1 rounded bg-gray-100 text-gray-600 border border-gray-300">Apagar</button></div></div>`;
 
             let html = `<div class="flex items-center justify-between mb-1">
                 <button onclick="navigateTo('home')" class="text-xs font-bold text-brand-blue flex items-center gap-1"><i class="fa-solid fa-arrow-left"></i> Voltar ao Menu</button>
@@ -1497,7 +1512,7 @@
                 html += card('Banco de Usuários (' + todos.length + ')', todos.length ? todos.map(x => `<div class="flex justify-between items-center py-2 border-t border-gray-100 first:border-t-0 text-xs">
                     <div><p class="font-bold text-gray-800">${esc(x.nome)} <span class="text-gray-400 font-semibold">@${esc(x.login)}</span>${x.ativo ? '' : ' <span class="text-red-600">(bloqueado)</span>'}</p>
                     <p class="text-[10px] text-gray-500">Cambista: ${esc(userName(x.criadoPor))}</p></div>
-                    <span class="flex items-center gap-2"><span class="font-black text-gray-800">${money(x.saldo)}</span>${x.ativo ? `<button onclick="quickPick('ab-cambista','${x.id}','ab-valor')" class="text-[10px] font-black uppercase px-2 py-1 rounded bg-emerald-600 text-white">+ Saldo</button>` : ''}</span></div>`).join('') : empty('Nenhum usuário cadastrado.'));
+                    <span class="flex items-center gap-2"><span class="font-black text-gray-800">${money(x.saldo)}</span>${x.ativo ? `<button onclick="quickPick('ab-cambista','${x.id}','ab-valor')" class="text-[10px] font-black uppercase px-2 py-1 rounded bg-emerald-600 text-white">+ Saldo</button>` : ''}<button onclick="apagarConta('${x.id}')" class="text-[10px] font-black uppercase px-2 py-1 rounded bg-gray-100 text-gray-600 border border-gray-300">Apagar</button></span></div>`).join('') : empty('Nenhum usuário cadastrado.'));
                 html += card('Fontes de jogos', '<div id="fontes-box" class="text-xs text-gray-600 space-y-1">Carregando...</div>');
                 html += card('Dados de Teste', `
                     <p class="text-[11px] text-gray-600 font-medium">Contas de teste (senha <b>1234</b>): cambistas <b>cambista1</b> e <b>cambista2</b>; usuários <b>teste1</b>, <b>teste2</b> e <b>teste3</b>.</p>
