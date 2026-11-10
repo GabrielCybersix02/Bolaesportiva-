@@ -15,7 +15,7 @@ CATALOGO = [
     dict(id="jackpot", nome="Fruity Jackpot", cat="slots", emoji="🍒", c1="#7B2FF7", c2="#F107A3", tag="HOT"),
     dict(id="aviator", nome="Aviator", cat="crash", emoji="✈️", c1="#E50539", c2="#1a1a2e", tag="NOVO"),
     dict(id="breve1", nome="Fortune Ox", cat="slots", emoji="🐂", c1="#F59E0B", c2="#B91C1C", breve=True),
-    dict(id="breve2", nome="Tigre da Sorte", cat="slots", emoji="🐯", c1="#EA580C", c2="#7F1D1D", breve=True),
+    dict(id="tigre", nome="Tigre Dourado", cat="slots", emoji="🐯", c1="#EF4444", c2="#7F1D1D", tag="NOVO"),
     dict(id="breve3", nome="Coelho Ninja", cat="slots", emoji="🐰", c1="#06B6D4", c2="#7C3AED", breve=True),
     dict(id="breve4", nome="Mines", cat="crash", emoji="💣", c1="#10B981", c2="#064E3B", breve=True),
 ]
@@ -60,6 +60,20 @@ def rtp_slot():                                       # RTP exato: o premio de c
             tot += pr * m
     return tot
 
+# ------------------------------------------------------------------ SLOT 3x3 "Tigre Dourado" (5 linhas, tigre = curinga)
+TG = dict(nome="Tigre Dourado", min=100, max=10000, linhas=[(0, 0, 0), (1, 1, 1), (2, 2, 2), (0, 1, 2), (2, 1, 0)],
+    simbolos=["moeda", "tangerina", "lanterna", "bombinha", "envelope", "lingote", "tigre"], peso=[22, 20, 16, 14, 10, 6, 6],
+    pay=[4.4, 6.8, 10.7, 17.5, 33, 88, 220])          # x da aposta de LINHA (aposta total / 5), 3 iguais na linha; tigre substitui qualquer simbolo
+def tg_spin():
+    return [RNG.choices(range(7), weights=TG["peso"], k=3) for _ in range(3)]                  # grid[coluna][linha]
+def tg_eval(grid, stake):
+    win, hits = 0.0, []
+    for i, ln in enumerate(TG["linhas"]):
+        sy = [grid[c][ln[c]] for c in range(3)]; nw = {x for x in sy if x != 6}
+        if len(nw) <= 1:
+            k = nw.pop() if nw else 6; m = TG["pay"][k]; win += m * stake / 5; hits.append(dict(linha=i, simbolo=TG["simbolos"][k], mult=m))
+    return int(win), hits
+
 # ------------------------------------------------------------------ AVIATOR
 AV_RTP = min(max(float(os.environ.get("AVIATOR_RTP", "97")), 80), 99.5) / 100     # retorno ao jogador; (1-RTP) = lucro da casa
 AV_MAX = int(float(os.environ.get("AVIATOR_MAX_X", "1000")) * 100)
@@ -92,7 +106,7 @@ def register(app, db, raw, need, tx, err, cents, MAX_PREMIO, BASE):
     @app.get("/slots/jogo/<jogo>")
     def slots_jogo(jogo):
         if not entrar(): return redirect("/")
-        return pagina({"jackpot": "slot_game.html", "aviator": "aviator.html"}.get(jogo, "slots.html"))
+        return pagina({"jackpot": "slot_game.html", "aviator": "aviator.html", "tigre": "tigre.html"}.get(jogo, "slots.html"))
     @app.get("/api/slots")
     @need("usuario")
     def slots_lobby(u): return jsonify(ok=True, saldo=u["saldo"] / 100, jogos=CATALOGO)
@@ -119,6 +133,27 @@ def register(app, db, raw, need, tx, err, cents, MAX_PREMIO, BASE):
         except Exception:
             c.execute("ROLLBACK"); raise
         return jsonify(ok=True, grid=grid, vitorias=vit, jackpot=jp, premio=win / 100, saldo=(saldo - stake + win) / 100)
+
+    @app.get("/api/slots/tigre/info")
+    @need("usuario")
+    def tg_info(u):
+        return jsonify(ok=True, saldo=u["saldo"] / 100, nome=TG["nome"], min=TG["min"] / 100, max=TG["max"] / 100, simbolos=TG["simbolos"], pay=TG["pay"], linhas=TG["linhas"])
+    @app.post("/api/slots/tigre/spin")
+    @need("usuario")
+    def tg_spin_route(u):
+        stake = cents((request.get_json(silent=True) or {}).get("valor"))
+        if not TG["min"] <= stake <= TG["max"]: return err("Aposta de R$ %.2f a R$ %.2f." % (TG["min"] / 100, TG["max"] / 100))
+        c = db(); c.execute("BEGIN")
+        try:
+            saldo = c.execute("SELECT saldo FROM users WHERE id=? FOR UPDATE", (u["id"],)).fetchone()[0]
+            if stake > saldo: c.execute("ROLLBACK"); return err("Saldo insuficiente. Faça um depósito.")
+            grid = tg_spin(); win, hits = tg_eval(grid, stake); win = min(win, MAX_PREMIO)
+            c.execute("UPDATE users SET saldo=saldo-?+? WHERE id=?", (stake, win, u["id"]))
+            c.execute("INSERT INTO slot_spins(data,user_id,jogo,aposta,premio,grid) VALUES(?,?,?,?,?,?)", (iso(), u["id"], "tigre", stake, win, json.dumps(grid)))
+            tx(c, "slot", u["id"], None, stake, "Slot %s: aposta R$ %.2f, prêmio R$ %.2f" % (TG["nome"], stake / 100, win / 100)); c.execute("COMMIT")
+        except Exception:
+            c.execute("ROLLBACK"); raise
+        return jsonify(ok=True, grid=[[TG["simbolos"][x] for x in col] for col in grid], linhas=hits, premio=win / 100, saldo=(saldo - stake + win) / 100)
 
     # ---------------------------------------------------------- Aviator
     def creditar(c, uid, valor, desc):
