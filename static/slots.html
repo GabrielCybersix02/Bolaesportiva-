@@ -1,58 +1,34 @@
 <!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Slots • Bola Esportiva</title><meta name="theme-color" content="#1445C7">
+<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cassino • Bola Esportiva</title><meta name="theme-color" content="#1b0f33">
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:#EEF3FB;color:#111;min-height:100vh}
-header{background:linear-gradient(135deg,#2F6BFF,#1445C7);color:#fff;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5}
-header a{color:#fff;text-decoration:none;font-weight:800}.saldo{font-weight:900}.saldo small{display:block;font-size:10px;opacity:.8;font-weight:700;text-align:right}
-main{max-width:430px;margin:0 auto;padding:14px}h2{margin:4px 0 2px;font-size:18px}.sub{font-size:12px;color:#666;margin-bottom:10px}
-.machine{background:linear-gradient(160deg,#0A1F4F,#1445C7);border-radius:18px;padding:14px;box-shadow:0 14px 28px -14px rgba(20,69,199,.8)}
-.reels{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:#06143a;padding:8px;border-radius:12px}
-.reel{display:grid;gap:6px}.cell{background:#fff;border-radius:10px;height:72px;display:flex;align-items:center;justify-content:center;font-size:38px;transition:.15s}
-.cell.win{background:#FACC15;transform:scale(1.06);box-shadow:0 0 14px #FACC15}.reel.spin .cell{filter:blur(2px)}
-.win-msg{height:26px;text-align:center;color:#FACC15;font-weight:900;margin:8px 0 2px}
-.bet{display:flex;gap:6px;margin:8px 0}.bet button{flex:1;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.14);color:#fff;border-radius:9999px;padding:8px 0;font-weight:800}
-.bet button.on{background:#fff;color:#1445C7}
-.go{width:100%;border:0;border-radius:12px;padding:16px;font-size:18px;font-weight:900;background:#FACC15;color:#0A1F4F;box-shadow:0 4px 0 #b8940c}.go:disabled{opacity:.6}
-.box{background:#fff;border-radius:14px;padding:12px;margin-top:12px;font-size:13px}.box h3{margin:0 0 8px;font-size:13px;text-transform:uppercase;color:#1445C7}
-.row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #eef}.pos{color:#059669;font-weight:800}.neg{color:#dc2626;font-weight:800}
-.err{color:#dc2626;font-weight:700;text-align:center;min-height:18px;font-size:13px;margin-top:6px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:Inter,system-ui,sans-serif;background:#1b0f33;color:#fff;min-height:100vh;padding-bottom:30px}
+header{position:sticky;top:0;z-index:5;background:#241346;border-bottom:1px solid #ffffff14;padding:12px 14px;padding-top:calc(12px + env(safe-area-inset-top,0px));display:flex;align-items:center;justify-content:space-between;gap:10px}
+header a{color:#fff;text-decoration:none;font-weight:800;font-size:14px}.logo{font-family:'Lilita One',Impact,sans-serif;font-size:20px;color:#ff3fb0;letter-spacing:.5px}
+.saldo{background:#ffffff14;border-radius:999px;padding:7px 13px;font-weight:800;font-size:13px}.saldo small{opacity:.6;font-weight:700;margin-right:4px;font-size:10px}
+.tabs{display:flex;gap:10px;padding:14px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:1 0 auto;min-width:108px;border:0;border-radius:12px;padding:15px 18px;font-weight:800;font-size:16px;background:#2a1a4a;color:#fff;font-family:inherit}
+.tabs button.on{background:#e6168f;box-shadow:0 6px 16px -6px #e6168f}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:6px 14px;max-width:560px;margin:0 auto}
+.card{position:relative;aspect-ratio:1/.84;border-radius:18px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:0 10px 22px -12px #000;transition:transform .15s}
+.card:active{transform:scale(.97)}.card .em{font-size:60px;filter:drop-shadow(0 6px 6px #0006);line-height:1}
+.card .nm{font-family:'Lilita One',Impact,sans-serif;font-size:25px;line-height:1;margin-top:6px;padding:0 8px;color:#ffd84a;-webkit-text-stroke:1.5px #7a2a00;paint-order:stroke fill;text-shadow:0 3px 0 #7a2a00}
+.star{position:absolute;top:9px;left:9px;width:30px;height:30px;border-radius:50%;background:#0006;display:grid;place-items:center;font-size:15px;color:#ffffffcc}
+.tag{position:absolute;top:9px;right:9px;background:#fff;color:#c2127f;font-size:10px;font-weight:900;padding:3px 8px;border-radius:99px}
+.card.breve{filter:grayscale(.7) brightness(.6)}.card.breve::after{content:"EM BREVE";position:absolute;bottom:10px;background:#000a;font-size:11px;font-weight:900;padding:4px 10px;border-radius:99px}
+.card::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 35%,#ffffff40,transparent 60%)}
+.card>*{position:relative}
 </style></head><body>
-<header><a href="/">← Voltar</a><div class="saldo"><small>SALDO</small><span id="saldo">R$ 0,00</span></div></header>
-<main>
-<h2 id="nome">Slots</h2><div class="sub" id="sub"></div>
-<div class="machine">
-  <div class="reels" id="reels"></div>
-  <div class="win-msg" id="msg"></div>
-  <div class="bet" id="chips"></div>
-  <button class="go" id="go" onclick="spin()">GIRAR</button>
-</div>
-<div class="err" id="err"></div>
-<div class="box"><h3>Tabela de prêmios (3 iguais na linha)</h3><div id="pay"></div><div class="sub" style="margin:8px 0 0">5 linhas: 3 retas e 2 diagonais. O prêmio de cada linha é (multiplicador × aposta ÷ 5).</div></div>
-<div class="box"><h3>Últimos giros</h3><div id="hist"></div></div>
-</main>
+<header><a href="/">←</a><span class="logo">Bola Esportiva • Cassino</span><div class="saldo"><small>SALDO</small><span id="saldo">R$ 0,00</span></div></header>
+<div class="tabs" id="tabs"></div><div class="grid" id="grid"></div>
 <script>
-const LINES=[[0,0,0],[1,1,1],[2,2,2],[0,1,2],[2,1,0]]; let G,KEY,BET=1,busy=false;
-const $=i=>document.getElementById(i), money=v=>'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-async function api(p,b){const r=await fetch(p,b===undefined?{credentials:'same-origin'}:{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
-  if(r.status===401){location.href='/';return {ok:false}} return r.json()}
-function draw(grid){$('reels').innerHTML=grid.map((col,c)=>`<div class="reel" id="r${c}">${col.map((s,r)=>`<div class="cell" id="c${c}${r}">${s}</div>`).join('')}</div>`).join('')}
-function renderHist(h){$('hist').innerHTML=h.length?h.map(x=>{const d=x.premio-x.aposta;return `<div class="row"><span>${money(x.aposta)}</span><span class="${d>=0?'pos':'neg'}">${d>=0?'+':''}${money(d)}</span></div>`}).join(''):'<div class="sub">Nenhum giro ainda.</div>'}
-async function init(){const r=await api('/api/slots'); if(!r.ok)return; KEY=Object.keys(r.jogos)[0]; G=r.jogos[KEY];
-  $('nome').textContent=G.nome; $('sub').textContent=G.sub; $('saldo').textContent=money(r.saldo);
-  draw([0,1,2].map(()=>G.symbols.slice(0,3))); renderHist(r.historico);
-  $('pay').innerHTML=Object.entries(G.pay).map(([s,m])=>`<div class="row"><span>${s} ${s} ${s}</span><b>${m}x</b></div>`).join('');
-  const opts=[1,2,5,10,20].filter(v=>v>=G.min&&v<=G.max); BET=opts[0];
-  $('chips').innerHTML=opts.map(v=>`<button data-v="${v}" onclick="setBet(${v})">${v}</button>`).join(''); setBet(BET)}
-function setBet(v){BET=v;document.querySelectorAll('#chips button').forEach(b=>b.classList.toggle('on',+b.dataset.v===v))}
-async function spin(){ if(busy)return; busy=true; $('go').disabled=true; $('err').textContent=''; $('msg').textContent='';
-  document.querySelectorAll('.cell').forEach(c=>c.classList.remove('win'));
-  const timers=[0,1,2].map(c=>{$('r'+c).classList.add('spin');return setInterval(()=>{for(let r=0;r<3;r++)$('c'+c+r).textContent=G.symbols[Math.floor(Math.random()*G.symbols.length)]},70)});
-  const [res]=await Promise.all([api('/api/slots/'+KEY+'/spin',{valor:BET}),new Promise(r=>setTimeout(r,700))]);
-  if(!res.ok){timers.forEach(clearInterval);document.querySelectorAll('.reel').forEach(e=>e.classList.remove('spin'));$('err').textContent=res.msg||'Erro.';busy=false;$('go').disabled=false;return}
-  for(let c=0;c<3;c++){await new Promise(r=>setTimeout(r,350)); clearInterval(timers[c]); $('r'+c).classList.remove('spin'); res.grid[c].forEach((s,r)=>$('c'+c+r).textContent=s)}
-  res.linhas.forEach(i=>LINES[i].forEach((row,c)=>$('c'+c+row).classList.add('win')));
-  $('msg').textContent=res.premio>0?'🎉 Você ganhou '+money(res.premio)+'!':''; $('saldo').textContent=money(res.saldo);
-  const h=await api('/api/slots'); if(h.ok) renderHist(h.historico); busy=false; $('go').disabled=false}
-init();
+const $=i=>document.getElementById(i),money=v=>'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+const CATS=[['todos','Todos'],['slots','Slots'],['crash','Crash']];let J=[],cat='todos';
+function render(){$('tabs').innerHTML=CATS.map(([k,n])=>`<button class="${k===cat?'on':''}" onclick="cat='${k}';render()">${n}</button>`).join('');
+ $('grid').innerHTML=J.filter(g=>cat==='todos'||g.cat===cat).map(g=>`<div class="card ${g.breve?'breve':''}" style="background:linear-gradient(145deg,${g.c1},${g.c2})" ${g.breve?'':`onclick="location.href='/slots/jogo/${g.id}'"`}>
+  <div class="star">☆</div>${g.tag&&!g.breve?`<div class="tag">${g.tag}</div>`:''}<div class="em">${g.emoji}</div><div class="nm">${g.nome}</div></div>`).join('')}
+(async()=>{const r=await fetch('/api/slots',{credentials:'same-origin'});if(r.status===401){location.href='/';return}const d=await r.json();if(!d.ok)return;
+ J=d.jogos;$('saldo').textContent=money(d.saldo);render()})();
 </script></body></html>
