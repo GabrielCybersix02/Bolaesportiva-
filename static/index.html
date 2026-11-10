@@ -1254,7 +1254,7 @@
 
             if (modalType === 'recuperar-pin') {
                 title.innerText = 'Recuperar Senha / PIN';
-                body.innerHTML = `<p class="text-xs text-gray-600">Para redefinir sua senha, peça ao seu cambista (usuários) ou ao ADM (cambistas). Eles podem definir uma nova senha pelo painel. Depois você pode trocá-la em <b>Mudar Senha</b>.</p>
+                body.innerHTML = `<p class="text-xs text-gray-600">Para redefinir sua senha, peça ao ADM (ou ao seu cambista, se tiver). Eles podem definir uma nova senha pelo painel. Depois você pode trocá-la em <b>Mudar Senha</b>.</p>
                     <button onclick="closeModal()" class="w-full bg-gray-800 text-white py-2 font-bold text-xs uppercase mt-2">Entendi</button>`;
             } else if (modalType === 'regulamento') {
                 title.innerText = 'Regulamento';
@@ -1504,6 +1504,12 @@
                     <button onclick="adminCreateCambista()" class="${B}"><i class="fa-solid fa-user-plus mr-1"></i> Criar Cambista</button>`);
                 const todosU = DB.users.filter(x => x.role === 'usuario');
                 const optG = (rot, l) => l.filter(x => x.ativo).length ? `<optgroup label="${rot}">${l.filter(x => x.ativo).map(c => `<option value="${c.id}">${esc(c.nome)} (@${esc(c.login)}) - ${money(c.saldo)}</option>`).join('')}</optgroup>` : '';
+                html += card('Novo Usuário (cliente)', `
+                    <input id="nu-nome" class="${I}" placeholder="Nome do usuário">
+                    <input id="nu-login" class="${I}" placeholder="Login" autocapitalize="none" autocomplete="off">
+                    <input id="nu-senha" type="password" class="${I}" placeholder="Senha (mín. 4 caracteres)" autocomplete="new-password">
+                    <button onclick="camCreateUser()" class="${B}"><i class="fa-solid fa-user-plus mr-1"></i> Criar Usuário</button>
+                    <p class="text-[10px] text-gray-500 font-medium">O usuário entra com login e senha e joga Slots. Depois use "Adicionar Saldo" para dar saldo a ele.</p>`);
                 html += card('Adicionar Saldo (Cambista ou Usuário)', (cams.some(c => c.ativo) || todosU.some(c => c.ativo)) ? `
                     <select id="ab-cambista" class="${I}">${optG('Cambistas', cams)}${optG('Usuários', todosU)}</select>
                     <input id="ab-valor" type="number" inputmode="decimal" min="0" step="0.01" class="${I}" placeholder="Valor (R$)">
@@ -1512,8 +1518,8 @@
                 const todos = DB.users.filter(x => x.role === 'usuario');
                 html += card('Banco de Usuários (' + todos.length + ')', todos.length ? todos.map(x => `<div class="flex justify-between items-center py-2 border-t border-gray-100 first:border-t-0 text-xs">
                     <div><p class="font-bold text-gray-800">${esc(x.nome)} <span class="text-gray-400 font-semibold">@${esc(x.login)}</span>${x.ativo ? '' : ' <span class="text-red-600">(bloqueado)</span>'}</p>
-                    <p class="text-[10px] text-gray-500">Cambista: ${esc(userName(x.criadoPor))}</p></div>
-                    <span class="flex items-center gap-2"><span class="font-black text-gray-800">${money(x.saldo)}</span>${x.ativo ? `<button onclick="quickPick('ab-cambista','${x.id}','ab-valor')" class="text-[10px] font-black uppercase px-2 py-1 rounded bg-emerald-600 text-white">+ Saldo</button>` : ''}<button onclick="apagarConta('${x.id}')" class="text-[10px] font-black uppercase px-2 py-1 rounded bg-gray-100 text-gray-600 border border-gray-300">Apagar</button></span></div>`).join('') : empty('Nenhum usuário cadastrado.'));
+                    <p class="text-[10px] text-gray-500">Criado por: ${esc(userName(x.criadoPor))}</p></div>
+                    <span class="flex items-center gap-2"><span class="font-black text-gray-800">${money(x.saldo)}</span>${x.ativo ? `<button onclick="quickPick('ab-cambista','${x.id}','ab-valor')" class="text-[10px] font-black uppercase px-2 py-1 rounded bg-emerald-600 text-white">+ Saldo</button>` : ''}<button onclick="toggleAtivo('${x.id}')" class="text-[10px] font-black uppercase px-2 py-1 rounded ${x.ativo ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}">${x.ativo ? 'Bloquear' : 'Ativar'}</button><button onclick="apagarConta('${x.id}')" class="text-[10px] font-black uppercase px-2 py-1 rounded bg-gray-100 text-gray-600 border border-gray-300">Apagar</button></span></div>`).join('') : empty('Nenhum usuário cadastrado.'));
                 html += card('Fontes de jogos', '<div id="fontes-box" class="text-xs text-gray-600 space-y-1">Carregando...</div>');
                 html += card('Dados de Teste', `
                     <p class="text-[11px] text-gray-600 font-medium">Contas de teste (senha <b>1234</b>): cambistas <b>cambista1</b> e <b>cambista2</b>; usuários <b>teste1</b>, <b>teste2</b> e <b>teste3</b>.</p>
@@ -1526,7 +1532,7 @@
                 html += `<button onclick="navigateTo('futebol')" class="${B}"><i class="fa-solid fa-ticket mr-1"></i> Fazer bilhete</button>`;
                 movs = DB.transactions.filter(t => t.de === u.id || t.para === u.id).map(t => Object.assign({}, t, { _sinal: t.para === u.id ? 1 : -1 }));
             }
-            const mgd = DB.users.filter(x => x.role === (u.role === 'admin' ? 'cambista' : 'usuario') && x.ativo);
+            const mgd = DB.users.filter(x => (u.role === 'admin' ? (x.role === 'cambista' || x.role === 'usuario') : x.role === 'usuario') && x.ativo);
             if (mgd.length) html += card('Redefinir Senha', `<select id="rp-conta" class="${I}">${mgd.map(x => `<option value="${x.id}">${esc(x.nome)} (@${esc(x.login)})</option>`).join('')}</select>
                 <input id="rp-nova" type="password" class="${I}" placeholder="Nova senha (mín. 4)" autocomplete="new-password">
                 <button onclick="resetPw()" class="${B}"><i class="fa-solid fa-key mr-1"></i> Redefinir</button>`);
