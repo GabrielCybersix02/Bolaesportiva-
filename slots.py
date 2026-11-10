@@ -2,7 +2,7 @@
 Ligacao no app.py (2 linhas, antes de @app.get("/health")):   import slots; slots.register(app, db, raw, need, tx, err, cents, MAX_PREMIO, BASE)
 Cada jogo e um dict em GAMES: para adicionar um jogo novo (dos repositorios), basta criar outro dict com strip + pay."""
 import json, os, secrets
-from flask import jsonify, request, send_from_directory
+from flask import jsonify, request, send_from_directory, session, redirect
 from datetime import datetime, timezone
 
 RNG = secrets.SystemRandom()
@@ -40,6 +40,9 @@ def register(app, db, raw, need, tx, err, cents, MAX_PREMIO, BASE):
     schema()
     @app.get("/slots")
     def slots_page():
+        uid = session.get("uid")                      # visitante (sem login) nao entra: volta para o site (so aposta de futebol)
+        row = db().execute("SELECT role FROM users WHERE id=? AND ativo=1", (uid,)).fetchone() if uid else None
+        if not row or row["role"] != "usuario": return redirect("/")
         r = send_from_directory(os.path.join(BASE, "static"), "slots.html"); r.headers["Cache-Control"] = "no-cache"; return r
     @app.get("/api/slots")
     @need("usuario")                                  # so cliente com conta joga (o saldo dele e o fiado dado pelo cambista)
@@ -58,7 +61,7 @@ def register(app, db, raw, need, tx, err, cents, MAX_PREMIO, BASE):
         c = db(); c.execute("BEGIN")
         try:
             saldo = c.execute("SELECT saldo FROM users WHERE id=? FOR UPDATE", (u["id"],)).fetchone()[0]       # trava: giros simultaneos nao gastam o mesmo saldo
-            if stake > saldo: c.execute("ROLLBACK"); return err("Saldo insuficiente. Peça uma recarga ao seu cambista.")
+            if stake > saldo: c.execute("ROLLBACK"); return err("Saldo insuficiente. Peça uma recarga ao ADM.")
             grid = spin_grid(g); win, hits = evaluate(g, grid, stake); win = min(win, MAX_PREMIO)
             c.execute("UPDATE users SET saldo=saldo-?+? WHERE id=?", (stake, win, u["id"]))
             c.execute("INSERT INTO slot_spins(data,user_id,jogo,aposta,premio,grid) VALUES(?,?,?,?,?,?)", (datetime.now(timezone.utc).isoformat(), u["id"], jogo, stake, win, json.dumps(grid)))
