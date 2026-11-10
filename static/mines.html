@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<title>Mines • Bola Esportiva</title><meta name="theme-color" content="#0a4fc4">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{margin:0;height:100%}body{font-family:Inter,system-ui,sans-serif;color:#fff;background:#06277a;display:flex;justify-content:center}
+.app{width:100%;max-width:430px;height:100%;min-height:100vh;display:flex;flex-direction:column;background:radial-gradient(circle at 12% 40%,#ffffff0f 0 60px,transparent 61px),linear-gradient(#0b5fe6,#0a47b8 60%,#083a99);padding:env(safe-area-inset-top,0px) 10px env(safe-area-inset-bottom,0px)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0 6px}
+.sel{background:linear-gradient(#0c4a9c,#0a3a80);border:2px solid #0a2f6b;border-radius:99px;padding:0 6px;height:36px;display:flex;align-items:center;flex:1;max-width:190px}.sel select{width:100%;background:none;border:0;color:#fff;font-size:15px;font-weight:700;font-family:inherit;text-align:center;appearance:none;-webkit-appearance:none;text-align-last:center;outline:0}
+.next{background:linear-gradient(#ffd43a,#f5b000);color:#3a2600;font-weight:800;font-size:15px;border-radius:99px;padding:8px 16px;box-shadow:0 2px 6px #0005}
+.prog{height:4px;background:#0a2f6b;border-radius:9px;overflow:hidden;margin-bottom:12px}.prog i{display:block;height:100%;width:0;background:#22c55e;transition:.3s}
+.board{position:relative;display:grid;grid-template-columns:repeat(5,1fr);gap:9px;padding:6px 4px}
+.t{aspect-ratio:1/.86;border:0;padding:0;border-radius:11px;background:linear-gradient(#0f5cb8,#0b4a98);box-shadow:inset 0 0 0 3px #0a3b80,0 5px 0 #062b66;display:grid;place-items:center;position:relative;transition:transform .12s,background .2s}
+.t:active:not(:disabled){transform:translateY(3px);box-shadow:inset 0 0 0 3px #0a3b80,0 2px 0 #062b66}.t::before{content:"";width:34%;aspect-ratio:1;border-radius:50%;background:#0a3b80;box-shadow:inset 0 2px 3px #0006}
+.t svg{width:62%;height:62%;position:absolute}.t.on::before,.t.star::before,.t.bomb::before{display:none}
+.t.sel{background:linear-gradient(#ffb43a,#f07a00);box-shadow:inset 0 0 0 3px #ffd27a,0 5px 0 #a54a00}
+.t.star{background:linear-gradient(#0f5cb8,#0b4a98);animation:flip .3s}.t.bomb{background:linear-gradient(#0e3d82,#0a2f6b);animation:boom .4s}.t.dim{opacity:.45}.t.hit{background:linear-gradient(#ff6a5a,#c4220f)!important;box-shadow:inset 0 0 0 3px #ffb3a8,0 5px 0 #7a1206!important}
+@keyframes flip{0%{transform:rotateX(90deg) scale(.8)}100%{transform:none}}@keyframes boom{0%{transform:scale(1.25)}30%{transform:translateX(-6px)}60%{transform:translateX(6px)}100%{transform:none}}
+.res{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.8);background:#000c;border:3px solid #22c55e;border-radius:16px;padding:12px 22px;text-align:center;font-weight:900;font-size:26px;opacity:0;pointer-events:none;transition:.25s;z-index:5;white-space:nowrap}.res.on{opacity:1;transform:translate(-50%,-50%) scale(1)}.res.l{border-color:#ef4444;color:#fca5a5}.res small{display:block;font-size:13px;opacity:.85;font-weight:700}
+.row{display:flex;gap:8px;margin-top:14px}.pill{background:linear-gradient(#0c4a9c,#0a3a80);border:2px solid #0a2f6b;border-radius:99px;height:38px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:#9fc4ff;font-family:inherit}
+.pill.r{flex:1;cursor:pointer}.pill.a{flex:1.2;justify-content:flex-start;gap:10px;padding:0 6px;color:#fff}.ic{width:30px;height:30px;border-radius:50%;background:#0b57d6;display:grid;place-items:center;font-size:16px}
+.sw{width:42px;height:22px;border-radius:99px;background:#d6e4ff;position:relative;transition:.2s}.sw::after{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0006;transition:.2s}.sw.on{background:#22c55e}.sw.on::after{left:23px}
+.pan{margin-top:12px;background:#0a3c91;border-radius:14px;padding:12px;border:2px solid #0a2f6b}.go{display:flex;gap:10px;align-items:center}
+.rb{width:56px;height:56px;border-radius:50%;border:3px solid #062b66;background:radial-gradient(#1a6fff,#0a47b8);color:#fff;font-size:24px;flex:none}
+.bt{flex:1;height:56px;border-radius:16px;border:3px solid #052406;background:linear-gradient(#58b800,#3d8a00);color:#fff;font-size:17px;font-weight:700;letter-spacing:.5px;box-shadow:0 3px 0 #000a;font-family:inherit}.bt.cash{background:linear-gradient(#ffb300,#e08a00);border-color:#5a3400;color:#2a1800}.bt:disabled{opacity:.7}
+.bet{margin-top:10px;background:#0c4a9c;border-radius:99px;padding:6px 10px;display:flex;align-items:center;justify-content:space-between;gap:6px}.bet label{display:block;text-align:center;font-size:13px;font-weight:600}.bet input{width:100%;background:#062b66;border:0;border-radius:99px;color:#fff;font-size:17px;font-weight:800;text-align:center;padding:4px;font-family:inherit;outline:0}
+.pm{width:38px;height:38px;border-radius:50%;border:2px solid #0a2f6b;background:#0a4fb0;color:#fff;font-size:20px;font-weight:700;flex:none}
+.err{text-align:center;color:#ffb4b4;font-size:12px;font-weight:700;min-height:16px;margin-top:6px}
+.bar{margin-top:auto;display:flex;align-items:center;gap:8px;padding:10px 0}.bar .pill{height:32px;padding:0 14px;color:#fff;font-size:14px}.q{width:32px;height:32px;border-radius:50%;background:#f59e0b;border:2px solid #7a4a00;font-weight:900;color:#5a3400;display:grid;place-items:center}.sal{margin-left:auto;font-weight:700;font-size:15px}.sal small{opacity:.8}
+.bar a{width:34px;height:34px;border-radius:50%;background:#0a3b80;display:grid;place-items:center;color:#fff;text-decoration:none;font-size:18px;border:2px solid #0a2f6b}
+.modal{position:fixed;inset:0;background:#000b;display:none;align-items:flex-end;justify-content:center;z-index:20}.modal.on{display:flex}.sheet{background:#0a3c91;width:100%;max-width:430px;max-height:80vh;overflow:auto;border-radius:20px 20px 0 0;padding:16px;font-size:13px;line-height:1.45}.sheet h3{margin:0 0 8px;color:#ffd43a}.x{float:right;background:#ffffff22;border:0;color:#fff;border-radius:99px;width:30px;height:30px}.tb{width:100%;border-collapse:collapse;margin:8px 0}.tb td,.tb th{padding:5px;border-bottom:1px solid #ffffff22;text-align:center}
+</style></head><body><div class="app">
+<div class="top"><div class="sel"><select id="min" onchange="upd()"></select></div><div class="next" id="next">Próximo: 0.00 BRL</div></div>
+<div class="prog"><i id="prog"></i></div>
+<div class="board" id="board"></div>
+<div class="row"><div class="pill r" onclick="aleat()">ALEATÓRIO</div><div class="pill a" onclick="toggleAuto()"><div class="ic">⟳</div><div class="sw" id="sw"></div><span style="color:#fff">Autojogo</span></div></div>
+<div class="pan"><div class="go"><button class="rb" onclick="repetir()" title="Repetir última aposta">↻</button><button class="bt" id="bt" onclick="principal()">APOSTA</button></div>
+ <div class="bet"><button class="pm" onclick="adj(-1)">−</button><div style="flex:1"><label>Aposta, BRL</label><input id="bv" inputmode="decimal" value="1.00" onchange="fixBet()"></div><button class="pm" onclick="dobrar()" title="Dobrar">×2</button><button class="pm" onclick="adj(1)">+</button></div>
+ <div class="err" id="err"></div></div>
+<div class="bar"><div class="pill">Mines</div><div class="q" onclick="help()">?</div><div class="sal"><span id="sal">0.00</span> <small>BRL</small></div><a href="/slots">≡</a></div>
+</div>
+<div class="modal" id="modal" onclick="if(event.target===this)this.classList.remove('on')"><div class="sheet" id="sheet"></div></div>
+<script>
+const $=i=>document.getElementById(i),f2=v=>Number(v).toFixed(2),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const STAR='<svg viewBox="0 0 100 100"><path d="M50 8l12.5 27 29 3.6-21.4 20 5.6 29L50 73l-25.7 14.6 5.6-29L8.5 38.6l29-3.6z" fill="#fff6e0" stroke="#f3dfb2" stroke-width="5" stroke-linejoin="round"/></svg>';
+const BOMB='<svg viewBox="0 0 100 100"><circle cx="46" cy="58" r="30" fill="#111"/><ellipse cx="36" cy="46" rx="8" ry="5" fill="#fff" opacity=".18"/><rect x="38" y="20" width="16" height="12" rx="3" fill="#333"/><path d="M52 22q10-12 22-6" stroke="#caa" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M78 6l3 8 8 3-8 3-3 8-3-8-8-3 8-3z" fill="#ffb300"/></svg>';
+let S={aberto:false,reveladas:[]},plan=new Set(),auto=false,busy=false,last=1,STEPS=[1,2,5,10,20,50,100,200,500],MIN=1,MAX=500,TAB={};
+async function api(p,b){const r=await fetch(p,b===undefined?{credentials:'same-origin'}:{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});if(r.status===401){location.href='/';return{ok:false}}return r.json()}
+const bet=()=>Math.max(MIN,Math.min(MAX,parseFloat(String($('bv').value).replace(',','.'))||MIN));
+function fixBet(){$('bv').value=f2(bet())}
+function adj(d){const v=bet();let i=STEPS.findIndex(x=>x>=v-1e-9);if(d>0)i=STEPS[i]>v+1e-9?i:i+1;else i=i-1;i=Math.max(0,Math.min(STEPS.length-1,i));$('bv').value=f2(STEPS[i])}
+function dobrar(){$('bv').value=f2(Math.min(MAX,bet()*2))}function repetir(){$('bv').value=f2(last)}
+function mult(m,k,rtp=.97){let p=1;for(let i=0;i<k;i++)p*=(25-i)/(25-m-i);return Math.floor(p*rtp*100)/100}
+function render(){const rev=new Set(S.reveladas||[]),bom=new Set(S.bombas||[]),fim=!S.aberto&&S.bombas;
+ $('board').querySelectorAll('.t').forEach((t,i)=>{let c='t';if(rev.has(i))c+=' star';else if(fim&&bom.has(i))c+=' bomb'+(S.hit===i?' hit':' dim');else if(fim)c+=' dim';else if(plan.has(i)&&!S.aberto)c+=' sel';if(t.dataset.c!==c){t.className=c;t.dataset.c=c;t.innerHTML=rev.has(i)?STAR:(fim&&bom.has(i))?BOMB:''}t.disabled=busy&&!S.aberto});
+ const m=S.aberto?S.minas:+$('min').value,k=(S.reveladas||[]).length,tot=25-m;$('prog').style.width=(S.aberto?k/tot*100:0)+'%';
+ const nx=S.aberto?S.proximo:bet()*(TAB.rtp?mult(m,1,TAB.rtp):mult(m,1));$('next').textContent='Próximo: '+(nx==null?'—':f2(nx))+' BRL';
+ $('min').disabled=S.aberto;const b=$('bt');if(S.aberto){b.className='bt cash';b.textContent=k?'SACAR '+f2(S.atual)+' BRL':'Vire uma casa';b.disabled=!k}else{b.className='bt';b.textContent=auto?(plan.size?'APOSTA (AUTO)':'Escolha as casas'):'APOSTA';b.disabled=busy}
+ $('sw').classList.toggle('on',auto)}
+function upd(){render()}
+function build(){$('board').innerHTML=Array.from({length:25},(_,i)=>`<button class="t" onclick="tile(${i})"></button>`).join('')+'<div class="res" id="res"></div>';$('min').innerHTML=Array.from({length:24},(_,i)=>`<option value="${i+1}" ${i+1===3?'selected':''}>Minas: ${i+1}</option>`).join('')}
+function apply(d){if(!d.ok){$('err').textContent=d.msg||'Erro.';return false}$('err').textContent='';const old=S;S=d;if(d.saldo!=null)$('sal').textContent=f2(d.saldo);if(!d.aberto&&d.bombas&&d.status==='perdeu'){S.hit=(d.bombas.find(b=>!(old.reveladas||[]).includes(b)&&b===lastIdx))}render();return true}
+let lastIdx=-1;
+function banner(win,v,x){const r=$('res');r.className='res on'+(win?'':' l');r.innerHTML=win?`${f2(v)} BRL<small>${x}x</small>`:'💥 Mina!';setTimeout(()=>r.classList.remove('on'),1700)}
+async function principal(){if(busy)return;$('err').textContent='';if(S.aberto){const d=await api('/api/mines/cashout',{});if(apply(d)&&d.status==='sacou')banner(true,d.premio,d.mult);return}
+ if(auto){if(!plan.size){$('err').textContent='Toque nas casas que deseja virar.';return}autoLoop();return}
+ last=bet();const d=await api('/api/mines/start',{valor:last,minas:+$('min').value});if(apply(d))render()}
+async function tile(i){if(busy&&!auto)return;if(!S.aberto){if(auto){plan.has(i)?plan.delete(i):plan.add(i);render()}return}if((S.reveladas||[]).includes(i)||revealing)return;await reveal(i)}
+let revealing=false;
+async function reveal(i){revealing=true;lastIdx=i;const d=await api('/api/mines/reveal',{idx:i});revealing=false;if(!apply(d))return null;
+ if(d.status==='perdeu'){S.hit=i;render();banner(false)}else if(d.status==='sacou')banner(true,d.premio,d.mult);return d}
+async function aleat(){if(S.aberto){const free=[...Array(25).keys()].filter(i=>!S.reveladas.includes(i));if(free.length&&!revealing)reveal(free[Math.floor(Math.random()*free.length)])}else if(auto){const free=[...Array(25).keys()].filter(i=>!plan.has(i));if(free.length){plan.add(free[Math.floor(Math.random()*free.length)]);render()}}}
+function toggleAuto(){if(S.aberto)return;auto=!auto;if(!auto){plan.clear();busy=false}render()}
+async function autoLoop(){busy=true;render();while(auto){last=bet();let d=await api('/api/mines/start',{valor:last,minas:+$('min').value});if(!apply(d)){auto=false;break}
+  for(const i of [...plan].sort((a,b)=>a-b)){await sleep(450);if(!auto&&!S.aberto)break;d=await reveal(i);if(!d||!S.aberto)break}
+  if(S.aberto&&S.reveladas.length){await sleep(400);d=await api('/api/mines/cashout',{});if(apply(d)&&d.status==='sacou')banner(true,d.premio,d.mult)}
+  await sleep(1700);if(S.aberto)break;S={aberto:false,reveladas:[],saldo:S.saldo};render()}busy=false;auto=false;render()}
+function help(){$('sheet').innerHTML=`<button class="x" onclick="modal.classList.remove('on')">✕</button><h3>Como jogar</h3><p>1. Escolha quantas <b>minas</b> (1 a 24) e o valor da aposta.<br>2. Toque em <b>APOSTA</b> e vire as casas: cada ⭐ aumenta o multiplicador.<br>3. Toque em <b>SACAR</b> quando quiser guardar o prêmio. Se virar uma 💣, perde a aposta.<br>Quanto mais minas, maior o risco e o prêmio por casa. Se virar todas as casas seguras, o saque é automático.<br><b>Autojogo:</b> ative, toque nas casas que quer virar e aperte APOSTA: o jogo repete sozinho.</p><table class="tb"><tr><th>Minas</th><th>1 casa</th><th>2 casas</th><th>3 casas</th></tr>${Object.entries(TAB.t||{}).map(([m,a])=>`<tr><td>${m}</td>${a.map(x=>`<td>${f2(x)}x</td>`).join('')}</tr>`).join('')}</table><p>Prêmio máximo limitado pela casa. Jogue com responsabilidade — +18.</p>`;$('modal').classList.add('on')}
+(async()=>{build();const d=await api('/api/mines');if(!d.ok)return;MIN=d.min;MAX=d.max;TAB.t=d.tabela;TAB.rtp=d.rtp;$('sal').textContent=f2(d.saldo);if(d.aberto){S=d;$('min').value=d.minas;$('bv').value=f2(d.stake)}render()})();
+</script></body></html>
