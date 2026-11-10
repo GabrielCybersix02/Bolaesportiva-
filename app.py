@@ -194,7 +194,7 @@ def state(u):
            for r in c.execute(tsql + " ORDER BY id DESC LIMIT 300", targs)]
     cam = None
     if u["role"] == "usuario" and u["criado_por"]:
-        r = c.execute("SELECT nome, telefone FROM users WHERE id=?", (u["criado_por"],)).fetchone()
+        r = c.execute("SELECT nome, telefone FROM users WHERE id=? AND role='cambista'", (u["criado_por"],)).fetchone()   # usuario criado pelo ADM nao tem cambista
         if r: cam = dict(nome=r["nome"], telefone=r["telefone"] or "")
     return jsonify(ok=True, me=str(u["id"]), users=us, transactions=txs, tickets=tks, cambista=cam)
 
@@ -214,7 +214,7 @@ def new_cambista(u):
     m = make_user(db(), "cambista", str(d.get("nome", "")), str(d.get("login", "")), str(d.get("senha", "")), u["id"])
     return err(m) if m else jsonify(ok=True)
 @app.post("/api/usuarios")
-@need("cambista")
+@need("admin")          # so o ADM cria usuario (cliente); cambista nao cria mais
 def new_usuario(u):
     d = request.get_json(silent=True) or {}
     m = make_user(db(), "usuario", str(d.get("nome", "")), str(d.get("login", "")), str(d.get("senha", "")), u["id"])
@@ -238,7 +238,7 @@ def add_saldo(u):
         c.execute("ROLLBACK"); raise
     return jsonify(ok=True, nome=t["nome"])
 def can_manage(u, t):
-    return t and ((u["role"] == "admin" and t["role"] == "cambista") or (u["role"] == "cambista" and t["role"] == "usuario" and t["criado_por"] == u["id"]))
+    return t and ((u["role"] == "admin" and t["role"] in ("cambista", "usuario")) or (u["role"] == "cambista" and t["role"] == "usuario" and t["criado_por"] == u["id"]))
 @app.post("/api/telefone")
 @need("cambista")
 def telefone(u):
@@ -863,7 +863,7 @@ def bet(u):
         c.execute("COMMIT")
     except Exception:
         c.execute("ROLLBACK"); raise
-    cr = c.execute("SELECT nome, telefone FROM users WHERE id=?", (u["criado_por"],)).fetchone() if u["criado_por"] else None
+    cr = c.execute("SELECT nome, telefone FROM users WHERE id=? AND role='cambista'", (u["criado_por"],)).fetchone() if u["criado_por"] else None
     return jsonify(ok=True, id=tid, token=token, odd=odd, valor=stake / 100, retorno=premio(stake, odd) / 100, selecoes=final, usuario=u["nome"],
                    cambista=dict(nome=cr["nome"], telefone=cr["telefone"] or "") if cr else None)
 def _estorno(c, t, tid, suf):
