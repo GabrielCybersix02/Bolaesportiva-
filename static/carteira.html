@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Carteira • Bola Esportiva</title><meta name="theme-color" content="#1445C7">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}body{margin:0;font-family:Inter,system-ui,sans-serif;background:#EEF3FB;color:#111}
+header{background:linear-gradient(135deg,#2F6BFF,#1445C7);color:#fff;padding:12px 14px;padding-top:calc(12px + env(safe-area-inset-top,0px));display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5}header a{color:#fff;text-decoration:none;font-weight:800}
+main{max-width:430px;margin:0 auto;padding:14px}.hero{background:linear-gradient(160deg,#0A1F4F,#1445C7);color:#fff;border-radius:18px;padding:16px}.hero small{opacity:.75;font-weight:700;font-size:11px;text-transform:uppercase}.hero b{display:block;font-size:30px;font-weight:900}.hero .s{margin-top:8px;font-size:13px;opacity:.9}
+.tabs{display:flex;background:#fff;border-radius:99px;padding:4px;margin:14px 0}.tabs button{flex:1;border:0;background:none;padding:11px;border-radius:99px;font-weight:800;color:#667;font-family:inherit}.tabs button.on{background:#1445C7;color:#fff}
+.box{background:#fff;border-radius:16px;padding:14px;margin-bottom:12px}.box h3{margin:0 0 10px;font-size:14px;color:#1445C7;text-transform:uppercase}
+label{display:block;font-size:12px;font-weight:700;color:#556;margin:10px 0 4px}input,select{width:100%;border:1.5px solid #d5dcec;border-radius:12px;padding:13px;font-size:17px;font-family:inherit;background:#fff}
+.chips{display:flex;gap:6px;margin-top:8px}.chips button{flex:1;border:1px solid #cdd7ee;background:#f4f7fd;border-radius:99px;padding:9px 0;font-weight:800;color:#1445C7;font-family:inherit}
+.go{width:100%;margin-top:14px;border:0;border-radius:12px;padding:15px;font-size:17px;font-weight:900;background:#16a34a;color:#fff;font-family:inherit}.go:disabled{opacity:.6}.go.blue{background:#1445C7}
+.msg{margin-top:10px;font-size:13px;font-weight:700;text-align:center;min-height:16px}.msg.e{color:#dc2626}.msg.o{color:#16a34a}.hint{font-size:12px;color:#667;line-height:1.45;margin-top:8px}
+.pix{text-align:center}.pix img{width:190px;height:190px;border-radius:10px;border:1px solid #eee}.code{word-break:break-all;background:#f4f7fd;border-radius:10px;padding:10px;font-size:11px;margin:10px 0;text-align:left;max-height:90px;overflow:auto}
+.row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #eef;font-size:13px}.row:last-child{border:0}.pos{color:#059669;font-weight:800}.neg{color:#dc2626;font-weight:800}.st{font-size:11px;color:#778}
+.hide{display:none}.pw{letter-spacing:10px;text-align:center;font-size:22px}a.lk{color:#1445C7;font-weight:700;font-size:12px;cursor:pointer}
+</style></head><body>
+<header><a href="/">← Voltar</a><b>Carteira</b><span></span></header>
+<main>
+<div class="hero"><small>Saldo</small><b id="saldo">R$ 0,00</b><div class="s">Disponível para saque: <b style="display:inline;font-size:14px" id="sac">R$ 0,00</b></div></div>
+<div class="tabs" id="tabs"><button class="on" data-t="dep">Depositar</button><button data-t="saq">Sacar</button><button data-t="his">Histórico</button></div>
+
+<section id="t-dep">
+ <div class="box"><h3>Depositar via Pix</h3><div id="depForm"><div id="cpfBox" class="hide"><label>Seu CPF (só na primeira vez)</label><input id="cpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00"></div><label>Valor (mín. <span id="dmin"></span>)</label><input id="dv" inputmode="decimal" placeholder="0,00">
+ <div class="chips"><button onclick="dv.value='10'">10</button><button onclick="dv.value='20'">20</button><button onclick="dv.value='50'">50</button><button onclick="dv.value='100'">100</button></div>
+ <button class="go" id="bDep" onclick="depositar()">Gerar Pix</button></div>
+ <div id="pix" class="pix hide"><div style="font-weight:800;margin-bottom:8px">Pague com o Pix abaixo</div><img id="qr" class="hide" alt="QR Code"><div class="code" id="cc"></div>
+ <button class="go blue" onclick="copiar()" id="bCopy">Copiar código Pix</button><div class="hint" id="aguard">Aguardando pagamento… o saldo entra automaticamente.</div><button class="go" style="background:#667;margin-top:10px" onclick="novo()">Novo depósito</button></div>
+ <div class="msg" id="mDep"></div></div>
+</section>
+
+<section id="t-saq" class="hide">
+ <div class="box hide" id="criar"><h3>Crie sua senha de saque</h3><div class="hint" style="margin:0 0 4px">Para sua segurança, todo saque exige uma senha de 4 números.</div>
+ <label>Senha de login do site</label><input id="sl" type="password" autocomplete="current-password"><label>Nova senha de saque (4 números)</label><input id="s1" class="pw" type="password" inputmode="numeric" maxlength="4"><label>Repita a senha de saque</label><input id="s2" class="pw" type="password" inputmode="numeric" maxlength="4">
+ <button class="go blue" onclick="criarSenha()">Salvar senha</button><div class="msg" id="mSen"></div></div>
+ <div class="box hide" id="sacar"><h3>Sacar via Pix</h3><label>Valor (<span id="smm"></span>)</label><input id="sv" inputmode="decimal" placeholder="0,00">
+ <label>Tipo da chave Pix</label><select id="st"><option value="cpf">CPF</option><option value="telefone">Telefone</option><option value="email">E-mail</option><option value="aleatoria">Chave aleatória</option></select>
+ <label>Chave Pix</label><input id="sk" autocomplete="off"><label>Senha de saque</label><input id="sp" class="pw" type="password" inputmode="numeric" maxlength="4" autocomplete="off">
+ <button class="go" id="bSaq" onclick="sacar()">Solicitar saque</button><div class="msg" id="mSaq"></div><div class="hint">A chave deve estar no seu nome. Só o saldo próprio pode ser sacado (crédito/fiado liberado pelo cambista não). <a class="lk" onclick="trocar()">Trocar senha de saque</a></div></div>
+ <div class="box hide" id="troca"><h3>Trocar senha de saque</h3><label>Senha atual</label><input id="ta" class="pw" type="password" inputmode="numeric" maxlength="4"><label>Nova senha (4 números)</label><input id="tn" class="pw" type="password" inputmode="numeric" maxlength="4">
+ <button class="go blue" onclick="salvarTroca()">Salvar</button><div class="msg" id="mTro"></div></div>
+</section>
+
+<section id="t-his" class="hide"><div class="box"><h3>Movimentações</h3><div id="hist"></div></div></section>
+</main>
+<script>
+const $=i=>document.getElementById(i),money=v=>'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});let I,poll=null;
+async function api(p,b){const r=await fetch(p,b===undefined?{credentials:'same-origin'}:{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});if(r.status===401){location.href='/';return{ok:false}}return r.json()}
+function msg(id,t,ok){const e=$(id);e.textContent=t||'';e.className='msg '+(ok?'o':'e')}
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));['dep','saq','his'].forEach(t=>$('t-'+t).classList.toggle('hide',t!==b.dataset.t))});
+async function load(){I=await api('/api/carteira');if(!I.ok)return;$('saldo').textContent=money(I.saldo);$('sac').textContent=money(I.sacavel);$('dmin').textContent=money(I.dep_min);$('smm').textContent=money(I.saq_min)+' a '+money(I.saq_max);
+ $('cpfBox').classList.toggle('hide',I.tem_cpf);$('criar').classList.toggle('hide',I.tem_senha);$('sacar').classList.toggle('hide',!I.tem_senha);
+ const N={deposito:'Depósito',saque:'Saque'},S={pago:'Concluído',pendente:'Aguardando',processando:'Processando',falhou:'Falhou/estornado'};
+ $('hist').innerHTML=I.historico.length?I.historico.map(h=>`<div class="row"><div>${N[h.tipo]}<div class="st">${new Date(h.data).toLocaleString('pt-BR')} • ${S[h.status]||h.status}</div></div><span class="${h.tipo==='deposito'?'pos':'neg'}">${h.tipo==='deposito'?'+':'−'}${money(h.valor)}</span></div>`).join(''):'<div class="hint">Nenhuma movimentação.</div>'}
+async function depositar(){msg('mDep','');const v=$('dv').value;$('bDep').disabled=true;const r=await api('/api/carteira/depositar',{valor:v,cpf:$('cpf').value});$('bDep').disabled=false;if(!r.ok)return msg('mDep',r.msg);
+ $('depForm').classList.add('hide');$('pix').classList.remove('hide');$('cc').textContent=r.copia_cola||'';if(r.qr){$('qr').src=r.qr.startsWith('data:')?r.qr:'data:image/png;base64,'+r.qr;$('qr').classList.remove('hide')}
+ clearInterval(poll);poll=setInterval(async()=>{const s=await api('/api/carteira/deposito/'+r.id);if(s.ok&&s.status==='pago'){clearInterval(poll);$('aguard').textContent='✅ Pagamento confirmado!';$('aguard').style.cssText='color:#16a34a;font-weight:800;font-size:15px';load()}},4000)}
+function novo(){clearInterval(poll);$('pix').classList.add('hide');$('depForm').classList.remove('hide');$('qr').classList.add('hide');$('dv').value='';load()}
+function copiar(){navigator.clipboard.writeText($('cc').textContent).then(()=>{$('bCopy').textContent='Copiado ✓';setTimeout(()=>$('bCopy').textContent='Copiar código Pix',2000)})}
+async function criarSenha(){if($('s1').value!==$('s2').value)return msg('mSen','As senhas não conferem.');const r=await api('/api/carteira/senha',{nova:$('s1').value,login_senha:$('sl').value});if(!r.ok)return msg('mSen',r.msg);$('sl').value=$('s1').value=$('s2').value='';load()}
+async function sacar(){msg('mSaq','');$('bSaq').disabled=true;const r=await api('/api/carteira/sacar',{valor:$('sv').value,tipo:$('st').value,chave:$('sk').value,senha:$('sp').value});$('bSaq').disabled=false;$('sp').value='';
+ if(!r.ok)return msg('mSaq',r.msg);msg('mSaq','Saque solicitado! O Pix será enviado para a sua chave.',true);$('sv').value='';load()}
+function trocar(){$('troca').classList.remove('hide')}
+async function salvarTroca(){const r=await api('/api/carteira/senha',{atual:$('ta').value,nova:$('tn').value});if(!r.ok)return msg('mTro',r.msg);msg('mTro','Senha alterada!',true);$('ta').value=$('tn').value=''}
+load();
+</script></body></html>
