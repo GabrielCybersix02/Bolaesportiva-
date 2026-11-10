@@ -12,4 +12,9 @@ print("Tigre Dourado - simulado (%d giros): RTP %.2f%% | acerto %.1f%%" % (n2, t
 for alvo in (1.5, 2, 5, 10):                       # Aviator: qualquer alvo de saque devolve ~RTP
     g = sum(1 for _ in range(n) if slots.sortear_crash() >= alvo * 100)
     print("Aviator saque %.1fx: acerta %.1f%% -> RTP %.2f%%" % (alvo, g / n * 100, g / n * alvo * 100))
+import mines
+for m_, k_ in ((3, 5), (10, 3), (24, 1)):          # Mines: chance de limpar k casas x multiplicador = RTP
+    p = 1.0
+    for i in range(k_): p *= (25 - m_ - i) / (25 - i)
+    print("Mines %d minas, sacar apos %d casas: %.2fx x chance %.1f%% -> RTP %.2f%%" % (m_, k_, mines.mult(m_, k_), p * 100, p * mines.mult(m_, k_) * 100))
 print("Aviator: RTP configurado %.1f%% (lucro da casa %.1f%%)" % (slots.AV_RTP * 100, 100 - slots.AV_RTP * 100))
