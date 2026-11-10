@@ -1539,6 +1539,7 @@ def acerto_pagar(u):
     return jsonify(ok=True, nome=t["nome"], valor=v / 100, sentido="recebido" if sinal < 0 else "pago")
 
 import slots; slots.register(app, db, raw, need, tx, err, cents, MAX_PREMIO, BASE)    # area de Slots
+import carteira; carteira.register(app, db, raw, need, tx, err, cents, BASE)             # deposito e saque (Pix / gateway AAS)
 @app.get("/health")
 def health():
     try: db().execute("SELECT 1").fetchone(); return "ok"
