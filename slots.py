@@ -17,7 +17,7 @@ CATALOGO = [
     dict(id="breve1", nome="Fortune Ox", cat="slots", emoji="🐂", c1="#F59E0B", c2="#B91C1C", breve=True),
     dict(id="tigre", nome="Tigre Dourado", cat="slots", emoji="🐯", c1="#EF4444", c2="#7F1D1D", tag="NOVO"),
     dict(id="breve3", nome="Coelho Ninja", cat="slots", emoji="🐰", c1="#06B6D4", c2="#7C3AED", breve=True),
-    dict(id="breve4", nome="Mines", cat="crash", emoji="💣", c1="#10B981", c2="#064E3B", breve=True),
+    dict(id="mines", nome="Mines", cat="crash", emoji="💎", c1="#2563EB", c2="#0B2A6B", tag="NOVO"),
 ]
 
 # ------------------------------------------------------------------ SLOT 6x5 "paga em qualquer lugar" (8+ iguais na tela)
@@ -106,7 +106,7 @@ def register(app, db, raw, need, tx, err, cents, MAX_PREMIO, BASE):
     @app.get("/slots/jogo/<jogo>")
     def slots_jogo(jogo):
         if not entrar(): return redirect("/")
-        return pagina({"jackpot": "slot_game.html", "aviator": "aviator.html", "tigre": "tigre.html"}.get(jogo, "slots.html"))
+        return pagina({"jackpot": "slot_game.html", "aviator": "aviator.html", "tigre": "tigre.html", "mines": "mines.html"}.get(jogo, "slots.html"))
     @app.get("/api/slots")
     @need("usuario")
     def slots_lobby(u): return jsonify(ok=True, saldo=u["saldo"] / 100, jogos=CATALOGO)
@@ -245,3 +245,4 @@ def register(app, db, raw, need, tx, err, cents, MAX_PREMIO, BASE):
         meus = [dict(stake=x["stake"] / 100, mult=x["mult"] and x["mult"] / 100, premio=x["premio"] / 100) for x in c.execute("SELECT * FROM aviator_bets WHERE user_id=? AND status<>'aberta' ORDER BY id DESC LIMIT 15", (u["id"],)).fetchall()]
         topo = [dict(nome=nome(x["nome"]), mult=x["mult"] / 100, premio=x["premio"] / 100) for x in c.execute("SELECT b.mult, b.premio, us.nome FROM aviator_bets b JOIN users us ON us.id=b.user_id WHERE b.status='ganhou' ORDER BY b.premio DESC LIMIT 10").fetchall()]
         return jsonify(ok=True, anterior=meus, topo=topo)
+    import mines; mines.register(app, db, raw, need, tx, err, cents, MAX_PREMIO)        # jogo Mines (mines.py)
