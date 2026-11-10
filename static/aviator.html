@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<title>Aviator • Bola Esportiva</title><meta name="theme-color" content="#141416">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{margin:0}body{font-family:Inter,system-ui,sans-serif;background:#0e0e10;color:#fff;display:flex;justify-content:center}
+.app{width:100%;max-width:430px;padding:env(safe-area-inset-top,0px) 0 calc(14px + env(safe-area-inset-bottom,0px))}
+.top{background:#141416;display:flex;align-items:center;justify-content:space-between;padding:12px 14px}.top a{color:#fff;text-decoration:none;font-size:22px;margin-right:8px}
+.logo{font-family:'Brush Script MT','Segoe Script',cursive;font-style:italic;font-weight:900;font-size:30px;color:#e50539;flex:1;letter-spacing:-1px}.sal{color:#4ade80;font-weight:800;font-size:17px}.sal small{color:#aaa;font-weight:600;font-size:14px}
+.hist{display:flex;gap:14px;padding:12px 14px;overflow-x:auto;scrollbar-width:none;font-weight:700;font-size:14px}.hist::-webkit-scrollbar{display:none}.hist span{flex:0 0 auto}
+.b1{color:#38bdf8}.b2{color:#a855f7}.b3{color:#d946ef}
+.stage{position:relative;margin:0 8px;height:250px;border-radius:18px;border:1px solid #ffffff22;overflow:hidden;background:radial-gradient(60% 70% at 50% 40%,#0b3a5e,#080b10 70%)}
+.rays{position:absolute;inset:-60%;background:repeating-conic-gradient(from 0deg at 50% 100%,#ffffff0d 0 6deg,transparent 6deg 12deg);animation:spinr 40s linear infinite}@keyframes spinr{to{transform:rotate(360deg)}}
+canvas{position:absolute;inset:0;width:100%;height:100%}
+.big{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;text-align:center;padding-bottom:38px}
+.big b{font-size:70px;font-weight:800;letter-spacing:-2px;text-shadow:0 4px 18px #0008}.big.crash b{color:#e50539}.big small{display:block;font-size:17px;font-weight:700;color:#e50539;letter-spacing:1px;margin-top:-4px}
+.wait{font-size:18px;font-weight:700}.wait .bar{width:200px;height:5px;background:#ffffff22;border-radius:9px;margin:10px auto 0;overflow:hidden}.wait .bar i{display:block;height:100%;background:#e50539;width:100%}
+.panel{background:#1a1a1d;border-radius:18px;margin:8px 8px 0;padding:10px 12px 12px}
+.seg{display:flex;width:240px;margin:0 auto 10px;background:#0e0e10;border-radius:99px;padding:3px}.seg button{flex:1;border:0;background:none;color:#aaa;padding:8px;border-radius:99px;font-size:15px;font-weight:600;font-family:inherit}.seg button.on{background:#2c2c30;color:#fff}
+.row{display:flex;gap:10px}.left{width:42%}.qty{display:flex;align-items:center;justify-content:space-between;background:#0e0e10;border-radius:99px;padding:4px}
+.qty button{width:34px;height:34px;border-radius:50%;border:0;background:#2c2c30;color:#fff;font-size:20px}.qty input{width:50px;background:none;border:0;color:#fff;text-align:center;font-size:19px;font-weight:800;font-family:inherit}
+.chips{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}.chips button{border:0;background:#0e0e10;color:#bbb;padding:10px 0;border-radius:99px;font-size:15px;font-family:inherit}
+.btn{flex:1;border:2px solid #7ee787;border-radius:14px;background:linear-gradient(#2fb61f,#27a315);color:#fff;font-size:22px;font-weight:600;font-family:inherit;line-height:1.25;padding:8px}.btn small{display:block;font-size:20px}
+.btn.cancel{background:linear-gradient(#e5484d,#b42329);border-color:#ff9b9f}.btn.cash{background:linear-gradient(#f59e0b,#d97706);border-color:#fcd34d}.btn.wt{background:#2a2a2e;border-color:#444;color:#aaa;font-size:17px}.btn.done{background:#1f3b27;border-color:#2e6b3f;color:#86efac;font-size:17px}
+.autoin{display:none;align-items:center;gap:8px;margin-top:8px;color:#aaa;font-size:13px}.autoin.on{display:flex}.autoin input{flex:1;background:#0e0e10;border:1px solid #333;color:#fff;border-radius:99px;padding:9px 12px;font-size:16px;font-family:inherit;text-align:center}
+.tabs{display:flex;background:#1a1a1d;border-radius:99px;margin:10px 8px 0;padding:4px}.tabs button{flex:1;border:0;background:none;color:#aaa;padding:11px;border-radius:99px;font-size:15px;font-weight:600;font-family:inherit}.tabs button.on{background:#2c2c30;color:#fff}
+.list{margin:8px 8px 0;background:#141416;border-radius:14px;padding:6px 12px;font-size:14px;min-height:80px}.li{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #ffffff10}.li:last-child{border:0}.li .g{color:#4ade80;font-weight:800}.li .r{color:#f87171;font-weight:800}.mu{color:#a855f7;font-weight:800}.empty{color:#777;text-align:center;padding:22px 0}
+.toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;padding:10px 18px;border-radius:99px;font-weight:800;display:none;z-index:9;box-shadow:0 6px 18px #0008}
+.err{color:#fca5a5;text-align:center;font-size:12px;min-height:16px;margin-top:6px}.foot{color:#666;font-size:10px;text-align:center;margin:14px 20px 0;line-height:1.4}
+</style></head><body><div class="app">
+<div class="top"><a href="/slots">‹</a><div class="logo">Aviator</div><div class="sal" id="sal">0.00 <small>BRL</small></div></div>
+<div class="hist" id="hist"></div>
+<div class="stage"><div class="rays"></div><canvas id="cv"></canvas><div class="big" id="big"></div></div>
+<div id="panels"></div><div class="err" id="err"></div>
+<div class="tabs" id="tabs"><button class="on" data-t="apostas">Apostas</button><button data-t="anterior">Anterior</button><button data-t="topo">Topo</button></div>
+<div class="list" id="list"></div>
+<div class="foot">+18 • Jogue com responsabilidade. O ponto de queda é sorteado no servidor antes de cada rodada e não pode ser alterado depois de você apostar.</div>
+</div><div class="toast" id="toast"></div>
+<script>
+const $=i=>document.getElementById(i),f2=v=>Number(v).toFixed(2),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let S=null,off=0,K=.07,MIN=1,MAX=500,val={1:1,2:1},aut={1:'2.00',2:'2.00'},mode={1:'a',2:'a'},queued={1:false,2:false},tab='apostas',lastRound=0,polling=false,lastPoll=0,flyAway=0,lastFase='';
+async function api(p,b){const r=await fetch(p,b===undefined?{credentials:'same-origin'}:{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});if(r.status===401){location.href='/';return{ok:false}}return r.json()}
+const now=()=>Date.now()/1000+off,multAt=t=>S?Math.floor(100*Math.exp(K*Math.max(0,t-S.rodada.start)))/100:1;
+const bk=m=>m<2?'b1':m<10?'b2':'b3';
+function apply(d){if(!d.ok){$('err').textContent=d.msg||'Erro.';return false}$('err').textContent='';S=d;off=d.agora-Date.now()/1000;K=d.k;MIN=d.min;MAX=d.max;
+ $('sal').innerHTML=f2(d.saldo)+' <small>BRL</small>';$('hist').innerHTML=d.historico.map(x=>`<span class="${bk(x)}">${f2(x)}x</span>`).join('');
+ if(d.rodada.id!==lastRound){lastRound=d.rodada.id;flyAway=0;}buildPanels();listas();return true}
+function bet_(s){return S&&S.rodada.bets.find(b=>b.slot===s)}
+function buildPanels(){if($('panels').dataset.sig===undefined){$('panels').dataset.sig='1';$('panels').innerHTML=[1,2].map(s=>`<div class="panel"><div class="seg"><button class="on" data-s="${s}" data-m="a">Aposta</button><button data-s="${s}" data-m="u">Auto</button></div>
+ <div class="row"><div class="left"><div class="qty"><button onclick="adj(${s},-1)">−</button><input id="v${s}" inputmode="decimal" value="1.00" onchange="val[${s}]=Math.max(MIN,Math.min(MAX,parseFloat(this.value.replace(',','.'))||MIN));this.value=f2(val[${s}]);paint()"><button onclick="adj(${s},1)">+</button></div>
+ <div class="chips">${[10,20,50,100].map(v=>`<button onclick="setv(${s},${v})">${v}</button>`).join('')}</div></div><button class="btn" id="btn${s}" onclick="act(${s})"></button></div>
+ <div class="autoin" id="au${s}"><span>Sacar automático em</span><input id="ax${s}" inputmode="decimal" value="2.00" onchange="aut[${s}]=this.value"><span>x</span></div></div>`).join('');
+ document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{const s=b.dataset.s;mode[s]=b.dataset.m;b.parentNode.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));$('au'+s).classList.toggle('on',b.dataset.m==='u')})}}
+function adj(s,d){val[s]=Math.max(MIN,Math.min(MAX,val[s]+d));$('v'+s).value=f2(val[s]);paint()}function setv(s,v){val[s]=Math.min(MAX,v);$('v'+s).value=f2(val[s]);paint()}
+function paint(){if(!S)return;const r=S.rodada,t=now(),fase=t<r.start?'espera':(r.fase==='fim'?'fim':'voo');
+ for(const s of [1,2]){const b=bet_(s),B=$('btn'+s);if(!B)continue;let cls='btn',h='';
+  if(b&&b.status==='aberta'){if(fase==='espera'){cls+=' cancel';h='Cancelar<small>'+f2(b.stake)+' BRL</small>'}else{cls+=' cash';h='Sacar<small>'+f2(b.stake*multAt(t))+' BRL</small>'}}
+  else if(b&&b.status==='ganhou'){cls+=' done';h='Ganhou '+f2(b.premio)+' BRL<small>'+f2(b.mult)+'x</small>'}
+  else if(b&&b.status==='perdeu'){cls+=' wt';h='Perdeu<small>'+f2(b.stake)+' BRL</small>'}
+  else if(fase==='espera'){h='Aposta '+s+'<small>'+f2(val[s])+' BRL</small>'}
+  else{cls+=queued[s]?' cancel':' wt';h=queued[s]?'Cancelar<small>próxima rodada</small>':'Apostar na próxima<small>'+f2(val[s])+' BRL</small>'}
+  B.className=cls;B.innerHTML=h}}
+async function act(s){const r=S.rodada,t=now(),b=bet_(s);$('err').textContent='';
+ if(b&&b.status==='aberta'){if(t<r.start){apply(await api('/api/aviator/cancel',{slot:s}))}else{const d=await api('/api/aviator/cashout',{slot:s});if(apply(d)){const x=bet_(s);if(x&&x.status==='ganhou')toast('Ganhou R$ '+f2(x.premio)+' ('+f2(x.mult)+'x)')}}return}
+ if(t<r.start&&!b){await place(s)}else if(!b||b.status!=='aberta'){queued[s]=!queued[s];paint()}}
+async function place(s){queued[s]=false;apply(await api('/api/aviator/bet',{slot:s,valor:val[s],auto:mode[s]==='u'?parseFloat(String(aut[s]).replace(',','.')):null}))}
+function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';setTimeout(()=>e.style.display='none',2600)}
+async function listas(){if(tab==='apostas'){const bs=S.rodada.bets;$('list').innerHTML=bs.length?bs.map(b=>`<div class="li"><span>Aposta ${b.slot} • ${f2(b.stake)} BRL</span><span class="${b.status==='ganhou'?'g':b.status==='perdeu'?'r':''}">${b.status==='ganhou'?f2(b.mult)+'x • +'+f2(b.premio):b.status==='perdeu'?'Perdeu':'No jogo'}</span></div>`).join(''):'<div class="empty">Nenhuma aposta nesta rodada</div>';return}
+ const d=await api('/api/aviator/listas');if(!d.ok)return;$('list').innerHTML=tab==='anterior'?(d.anterior.length?d.anterior.map(x=>`<div class="li"><span>${f2(x.stake)} BRL</span><span class="${x.premio>0?'g':'r'}">${x.premio>0?f2(x.mult)+'x • +'+f2(x.premio):'Perdeu'}</span></div>`).join(''):'<div class="empty">Sem histórico</div>'):(d.topo.length?d.topo.map(x=>`<div class="li"><span>${x.nome}</span><span><span class="mu">${f2(x.mult)}x</span> &nbsp; <b class="g">${f2(x.premio)}</b></span></div>`).join(''):'<div class="empty">Ainda sem prêmios</div>')}
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));listas()});
+// ---------- desenho
+const cv=$('cv'),cx=cv.getContext('2d');let W=0,H=0;function fit(){const r=cv.getBoundingClientRect(),d=devicePixelRatio||1;W=r.width;H=r.height;cv.width=W*d;cv.height=H*d;cx.setTransform(d,0,0,d,0,0)}addEventListener('resize',fit);
+const P=t=>[W*.07+W*.72*(1-Math.exp(-t/5.5)),H*.9-H*.58*(1-Math.exp(-t/7))];
+function plane(x,y,a){cx.save();cx.translate(x,y);cx.rotate(a);cx.fillStyle='#e50539';cx.strokeStyle='#7f0a22';cx.lineWidth=1.5;
+ cx.beginPath();cx.ellipse(0,0,30,8,0,0,7);cx.fill();cx.stroke();cx.beginPath();cx.moveTo(-26,0);cx.lineTo(-38,-16);cx.lineTo(-30,-16);cx.lineTo(-14,-2);cx.fill();
+ cx.beginPath();cx.moveTo(-6,4);cx.lineTo(-18,18);cx.lineTo(6,18);cx.lineTo(10,4);cx.fill();cx.stroke();cx.fillStyle='#ffd0d8';cx.beginPath();cx.ellipse(8,-3,8,4,0,0,7);cx.fill();
+ cx.strokeStyle='#ddd';cx.lineWidth=3;cx.beginPath();cx.moveTo(32,-14);cx.lineTo(32,14);cx.stroke();cx.restore()}
+function frame(){requestAnimationFrame(frame);if(!S)return;const r=S.rodada,t=now(),el=t-r.start;cx.clearRect(0,0,W,H);const big=$('big');
+ const fase=t<r.start?'espera':r.fase==='fim'?'fim':'voo';if(fase!==lastFase){lastFase=fase;paint();if(fase==='espera')for(const s of [1,2])if(queued[s]&&!bet_(s))place(s)}
+ if(fase==='espera'){const left=r.start-t;big.className='big';big.innerHTML=`<div class="wait">Próxima rodada em ${Math.ceil(left)}s<div class="bar"><i style="width:${Math.max(0,left/6*100)}%"></i></div></div>`;const[x,y]=P(0);plane(x,y,-.1);return}
+ const m=fase==='fim'?r.crash:multAt(t);
+ const tt=fase==='fim'?Math.log(r.crash)/K:el;cx.beginPath();cx.moveTo(P(0)[0],H);let last;for(let u=0;u<=tt;u+=tt/60||1){last=P(u);cx.lineTo(last[0],last[1]+(fase==='fim'?0:Math.sin(u*2)*0))}last=P(tt);cx.lineTo(last[0],last[1]);
+ cx.strokeStyle='#e50539';cx.lineWidth=4;cx.stroke();cx.lineTo(last[0],H);cx.closePath();cx.fillStyle='#e5053955';cx.fill();
+ const bob=fase==='voo'?Math.sin(el*3)*3:0;
+ if(fase==='fim'){flyAway+=14;plane(last[0]+flyAway,last[1]-flyAway*.35,-.35)}else plane(last[0],last[1]+bob,-.28);
+ big.className='big'+(fase==='fim'?' crash':'');big.innerHTML=`<div><b>${f2(m)}x</b>${fase==='fim'?'<small>VOOU EMBORA!</small>':''}</div>`;
+ if(fase==='voo'){paint();if(performance.now()-lastPoll>350&&!polling){lastPoll=performance.now();polling=true;api('/api/aviator').then(d=>{polling=false;apply(d)})}}
+ else if(fase==='fim'&&performance.now()-lastPoll>1000&&!polling){lastPoll=performance.now();polling=true;api('/api/aviator').then(d=>{polling=false;apply(d)})}}
+(async()=>{fit();apply(await api('/api/aviator'));paint();frame()})();
+setInterval(()=>{if(S&&S.rodada.fase==='espera'&&now()<S.rodada.start)paint()},500);
+</script></body></html>
