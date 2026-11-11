@@ -12,23 +12,24 @@ header a{color:#fff;text-decoration:none;font-weight:800;font-size:14px}.logo{fo
 .tabs button{flex:1 0 auto;min-width:108px;border:0;border-radius:12px;padding:15px 18px;font-weight:800;font-size:16px;background:#2a1a4a;color:#fff;font-family:inherit}
 .tabs button.on{background:#e6168f;box-shadow:0 6px 16px -6px #e6168f}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:6px 14px;max-width:560px;margin:0 auto}
-.card{position:relative;aspect-ratio:1/.84;border-radius:18px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:0 10px 22px -12px #000;transition:transform .15s}
-.card:active{transform:scale(.97)}.card .em{font-size:60px;filter:drop-shadow(0 6px 6px #0006);line-height:1}
-.card .nm{font-family:'Lilita One',Impact,sans-serif;font-size:25px;line-height:1;margin-top:6px;padding:0 8px;color:#ffd84a;-webkit-text-stroke:1.5px #7a2a00;paint-order:stroke fill;text-shadow:0 3px 0 #7a2a00}
-.star{position:absolute;top:9px;left:9px;width:30px;height:30px;border-radius:50%;background:#0006;display:grid;place-items:center;font-size:15px;color:#ffffffcc}
-.tag{position:absolute;top:9px;right:9px;background:#fff;color:#c2127f;font-size:10px;font-weight:900;padding:3px 8px;border-radius:99px}
-.card.breve{filter:grayscale(.7) brightness(.6)}.card.breve::after{content:"EM BREVE";position:absolute;bottom:10px;background:#000a;font-size:11px;font-weight:900;padding:4px 10px;border-radius:99px}
-.card::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 35%,#ffffff40,transparent 60%)}
-.card>*{position:relative}
+.card{position:relative;aspect-ratio:1/.9;border-radius:20px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;text-align:center;box-shadow:0 12px 22px -12px #000,inset 0 0 0 2px #ffffff30;transition:transform .15s}
+.card:active{transform:scale(.97)}.card::before{content:"";position:absolute;left:50%;top:38%;width:230%;aspect-ratio:1;margin-left:-115%;margin-top:-115%;background:repeating-conic-gradient(#ffffff26 0 7deg,#0000 7deg 14deg);-webkit-mask:radial-gradient(circle,#000 6%,transparent 38%);mask:radial-gradient(circle,#000 6%,transparent 38%);animation:rr 50s linear infinite}@keyframes rr{to{transform:rotate(360deg)}}
+.card::after{content:"";position:absolute;inset:0;background:linear-gradient(#0000 55%,#000a)}
+.card .art{position:absolute;left:14%;right:14%;top:5%;bottom:24%;z-index:1;filter:drop-shadow(0 8px 6px #0008)}.card .art svg{width:100%;height:100%;overflow:visible}.card .em{position:absolute;top:12%;font-size:62px;z-index:1}
+.card .nm{position:relative;z-index:2;font-family:'Lilita One',Impact,sans-serif;font-size:21px;line-height:1;padding:0 8px 10px;background:linear-gradient(#fffbd0,#ffd23a 55%,#e0861a);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:1px #5a2a00;filter:drop-shadow(0 2px 0 #5a2a00)}
+.star{position:absolute;top:9px;left:9px;z-index:3;width:30px;height:30px;border-radius:50%;background:#0006;display:grid;place-items:center;font-size:15px;color:#ffffffcc}
+.tag{position:absolute;top:9px;right:9px;z-index:3;background:linear-gradient(#fff,#ffe4f3);color:#c2127f;font-size:10px;font-weight:900;padding:3px 8px;border-radius:99px;box-shadow:0 2px 6px #0005}
 </style></head><body>
 <header><a href="/">←</a><span class="logo">Bola Esportiva • Cassino</span><a href="/carteira" class="saldo" style="color:#fff;text-decoration:none"><small>SALDO</small><span id="saldo">R$ 0,00</span> &nbsp;<b style="color:#4ade80">+</b></a></header>
+<svg width="0" height="0" style="position:absolute"><defs id="defs"></defs></svg>
 <div class="tabs" id="tabs"></div><div class="grid" id="grid"></div>
+<script src="/static/arte.js"></script>
 <script>
 const $=i=>document.getElementById(i),money=v=>'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
 const CATS=[['todos','Todos'],['slots','Slots'],['crash','Crash']];let J=[],cat='todos';
 function render(){$('tabs').innerHTML=CATS.map(([k,n])=>`<button class="${k===cat?'on':''}" onclick="cat='${k}';render()">${n}</button>`).join('');
- $('grid').innerHTML=J.filter(g=>cat==='todos'||g.cat===cat).map(g=>`<div class="card ${g.breve?'breve':''}" style="background:linear-gradient(145deg,${g.c1},${g.c2})" ${g.breve?'':`onclick="location.href='/slots/jogo/${g.id}'"`}>
-  <div class="star">☆</div>${g.tag&&!g.breve?`<div class="tag">${g.tag}</div>`:''}<div class="em">${g.emoji}</div><div class="nm">${g.nome}</div></div>`).join('')}
+ $('grid').innerHTML=J.filter(g=>cat==='todos'||g.cat===cat).map(g=>{const T=ARTE.TEMAS[g.id],c1=T?T.b1:g.c1,c2=T?T.b2:g.c2,art=ARTE.capa(g.id);return `<div class="card" style="background:radial-gradient(circle at 50% 35%,${c1},${c2})" onclick="location.href='/slots/jogo/${g.id}'">
+  <div class="star">☆</div>${g.tag?`<div class="tag">${g.tag}</div>`:''}${art?`<div class="art">${art}</div>`:`<div class="em">${g.emoji}</div>`}<div class="nm">${g.nome}</div></div>`}).join('');ARTE.injetar()}
 (async()=>{const r=await fetch('/api/slots',{credentials:'same-origin'});if(r.status===401){location.href='/';return}const d=await r.json();if(!d.ok)return;
  J=d.jogos;$('saldo').textContent=money(d.saldo);render()})();
 </script></body></html>
