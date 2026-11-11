@@ -5,7 +5,8 @@ Ajustes por variavel de ambiente no Render:  AVIATOR_RTP (padrao 97 = casa fica 
 import json, math, os, secrets, time
 from math import comb
 from flask import jsonify, request, send_from_directory, session, redirect
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+VERSAO = "2026.11.12"        # sobe a cada pacote de arquivos; o lobby mostra para voce conferir se o servidor esta atualizado
 
 RNG = secrets.SystemRandom()
 iso = lambda: datetime.now(timezone.utc).isoformat()
@@ -24,6 +25,14 @@ CATALOGO = [
     dict(id="cavalo", nome="Cavalo Imperial", cat="slots", emoji="🐴", c1="#B45309", c2="#451A03", tag="NOVO"),
     dict(id="olimpo", nome="Trovão Olímpico", cat="slots", emoji="⚡", c1="#1E3A8A", c2="#7C3AED", tag="NOVO"),
     dict(id="doce", nome="Doce Fortuna", cat="slots", emoji="🍭", c1="#F472B6", c2="#8B5CF6", tag="NOVO"),
+    dict(id="gemas", nome="Gemas Reais", cat="slots", emoji="💎", c1="#06B6D4", c2="#1E1B4B", tag="NOVO"),
+    dict(id="moedas", nome="Moedas Mágicas", cat="slots", emoji="🪙", c1="#F59E0B", c2="#7C2D12", tag="NOVO"),
+    dict(id="rato", nome="Ratinho da Sorte", cat="slots", emoji="🐭", c1="#FBBF24", c2="#0F766E", tag="NOVO"),
+    dict(id="ovo", nome="Ovo do Dragão", cat="slots", emoji="🥚", c1="#F97316", c2="#7F1D1D", tag="NOVO"),
+    dict(id="frutas", nome="Festa das Frutas", cat="slots", emoji="🍉", c1="#FB923C", c2="#BE185D", tag="NOVO"),
+    dict(id="pesca", nome="Pesca Premiada", cat="slots", emoji="🐟", c1="#0EA5E9", c2="#0C4A6E", tag="NOVO"),
+    dict(id="oeste", nome="Ouro do Oeste", cat="slots", emoji="🤠", c1="#F59E0B", c2="#7C2D12", tag="NOVO"),
+    dict(id="livro", nome="Livro Dourado", cat="slots", emoji="📖", c1="#D97706", c2="#1E1B4B", tag="NOVO"),
     dict(id="mines", nome="Mines", cat="crash", emoji="💎", c1="#2563EB", c2="#0B2A6B", tag="NOVO"),
 ]
 
@@ -92,7 +101,7 @@ def rtp_tigrinho():                                   # exato: 125 combinacoes i
     return sum(tj_eval([a, b, c], 1000)[0] / 1000 for a in range(5) for b in range(5) for c in range(5)) / 125
 
 # ------------------------------------------------------------------ JOGOS TEMATICOS (mesma matematica dos motores acima, so muda tema/arte no navegador)
-NOVOS = {"coelho": "linhas", "dragao": "linhas", "boi": "linhas", "cobra": "linhas", "panda": "linhas", "cavalo": "linhas", "olimpo": "cluster", "doce": "cluster"}   # linhas = 3x3 como o Tigre Dourado | cluster = 6x5 como o Fruity Jackpot
+NOVOS = {"tigre": "linhas", "jackpot": "cluster", "gemas": "linhas", "moedas": "linhas", "rato": "linhas", "ovo": "linhas", "frutas": "cluster", "pesca": "cluster", "oeste": "cluster", "livro": "cluster", "coelho": "linhas", "dragao": "linhas", "boi": "linhas", "cobra": "linhas", "panda": "linhas", "cavalo": "linhas", "olimpo": "cluster", "doce": "cluster"}   # linhas = 3x3 como o Tigre Dourado | cluster = 6x5 como o Fruity Jackpot
 NOMES = {c["id"]: c["nome"] for c in CATALOGO}
 
 # ------------------------------------------------------------------ AVIATOR
@@ -119,19 +128,60 @@ def register(app, db, raw, need, tx, err, cents, MAX_PREMIO, BASE):
         uid = session.get("uid")
         row = db().execute("SELECT role FROM users WHERE id=? AND ativo=1", (uid,)).fetchone() if uid else None
         return bool(row and row["role"] == "usuario")
-    def pagina(nome):
-        r = send_from_directory(os.path.join(BASE, "static"), nome); r.headers["Cache-Control"] = "no-cache"; return r
-
+    def pagina(nome):                                  # entrega a pagina com o arte.js "carimbado" pela data do arquivo: o navegador nunca usa versao velha
+        st = os.path.join(BASE, "static")
+        try:
+            v = int(os.path.getmtime(os.path.join(st, "arte.js")))
+            r = app.response_class(open(os.path.join(st, nome), encoding="utf-8").read().replace('/static/arte.js"', '/static/arte.js?v=%d"' % v), mimetype="text/html")
+        except Exception:
+            r = send_from_directory(st, nome)
+        r.headers["Cache-Control"] = "no-store"; return r
+    @app.get("/api/slots/versao")                      # diagnostico: abra /api/slots/versao para conferir se todos os arquivos novos subiram
+    def slots_versao():
+        st = os.path.join(BASE, "static")
+        def m(n):
+            try: return int(os.path.getmtime(os.path.join(st, n)))
+            except Exception: return None
+        return jsonify(jogos=len(CATALOGO), arquivos={n: m(n) for n in ("arte.js", "slots.html", "jogo_linhas.html", "jogo_cluster.html", "aviator.html", "mines.html", "tigrinho.html", "carteira.html")})
     @app.get("/slots")
     def slots_page(): return pagina("slots.html") if entrar() else redirect("/")
     @app.get("/slots/jogo/<jogo>")
     def slots_jogo(jogo):
         if not entrar(): return redirect("/")
         if jogo in NOVOS: return pagina("jogo_%s.html" % NOVOS[jogo])
-        return pagina({"jackpot": "slot_game.html", "aviator": "aviator.html", "tigre": "tigre.html", "mines": "mines.html", "tigrinho": "tigrinho.html"}.get(jogo, "slots.html"))
+        return pagina({"jackpot": "slot_game.html", "aviator": "aviator.html", "tigre": "tigre.html", "mines": "mines.html", "tigrinho": "tigrinho.html", "icones": "icones.html"}.get(jogo, "slots.html"))
     @app.get("/api/slots")
     @need("usuario")
-    def slots_lobby(u): return jsonify(ok=True, saldo=u["saldo"] / 100, jogos=CATALOGO)
+    def slots_lobby(u): return jsonify(ok=True, saldo=u["saldo"] / 100, jogos=CATALOGO, versao=VERSAO, nome=u["nome"])
+    @app.after_request
+    def _sem_cache_estatico(r):                      # arquivos .js/.css/.json do jogo nunca ficam velhos no celular
+        if request.path.startswith("/static/") and request.path.rsplit(".", 1)[-1] in ("js", "css", "json", "html"): r.headers["Cache-Control"] = "no-cache"
+        return r
+    @app.get("/api/skins")                           # lista as imagens em static/img/<jogo>/ (arte realista que voce colocar la entra sozinha)
+    @need("usuario")
+    def skins(u):
+        raiz = os.path.join(BASE, "static", "img"); out = {}
+        if os.path.isdir(raiz):
+            for d in sorted(os.listdir(raiz)):
+                p = os.path.join(raiz, d)
+                if os.path.isdir(p): out[d] = sorted(f for f in os.listdir(p) if f.rsplit(".", 1)[-1].lower() in ("png", "webp", "jpg", "jpeg", "avif", "svg"))
+        return jsonify(ok=True, skins=out)
+    @app.get("/api/slots/destaques")                 # maiores prêmios das últimas 24h (dados reais, nome mascarado)
+    @need("usuario")
+    def destaques(u):
+        desde = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        rows = db().execute("SELECT s.jogo, s.aposta, s.premio, us.nome FROM slot_spins s JOIN users us ON us.id=s.user_id WHERE s.data>? AND s.aposta>0 AND s.premio>=s.aposta*5 ORDER BY s.premio DESC LIMIT 12", (desde,)).fetchall()
+        return jsonify(ok=True, itens=[dict(nome=(r["nome"] or "?")[:1].upper() + "***", jogo=NOMES.get(r["jogo"], r["jogo"]), premio=r["premio"] / 100, mult=round(r["premio"] / r["aposta"], 1)) for r in rows])
+    @app.get("/api/slots/perfil")                    # nivel do jogador pelo total apostado
+    @need("usuario")
+    def perfil(u):
+        c = db(); tot = 0
+        for q in ("SELECT COALESCE(SUM(aposta),0) FROM slot_spins WHERE user_id=?", "SELECT COALESCE(SUM(stake),0) FROM aviator_bets WHERE user_id=?", "SELECT COALESCE(SUM(stake),0) FROM mines_games WHERE user_id=?"):
+            try: tot += int(c.execute(q, (u["id"],)).fetchone()[0])
+            except Exception: pass
+        NIV = [("Bronze", 0), ("Prata", 50000), ("Ouro", 200000), ("Platina", 1000000), ("Diamante", 5000000)]      # centavos apostados
+        i = max(k for k, (n, v) in enumerate(NIV) if tot >= v); prox = NIV[i + 1] if i + 1 < len(NIV) else None
+        return jsonify(ok=True, nome=u["nome"], nivel=NIV[i][0], indice=i, total=tot / 100, prox=prox[1] / 100 if prox else None, prox_nome=prox[0] if prox else None, progresso=1 if not prox else (tot - NIV[i][1]) / (prox[1] - NIV[i][1]))
     @app.get("/api/slots/jackpot/info")
     @need("usuario")
     def slot_info(u):
