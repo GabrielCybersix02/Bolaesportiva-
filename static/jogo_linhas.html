@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<title>Jogo • Bola Esportiva</title><meta name="theme-color" content="#4c1d95">
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
+<style>
+:root{--b1:#7c3aed;--b2:#4c1d95;--ac:#ffd45a;--ac2:#b8891a;--p1:#3b1578;--p2:#2a0f55;--p3:#1c0a3b;--bd:#12072a;--c1:#fff;--c2:#eee}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{margin:0;min-height:100%}body{font-family:Inter,system-ui,sans-serif;color:#fff;display:flex;justify-content:center;background:var(--b2);overflow-x:hidden}
+.bg{position:fixed;inset:0;z-index:0;background:radial-gradient(circle at 15% 18%,#fff6 0 14px,transparent 15px),radial-gradient(circle at 86% 30%,#fff5 0 20px,transparent 21px),radial-gradient(circle at 70% 8%,#fff5 0 10px,transparent 11px),repeating-linear-gradient(90deg,#0000 0 38px,#0002 38px 40px),repeating-linear-gradient(0deg,#0000 0 28px,#0002 28px 30px),linear-gradient(var(--b1),var(--b2) 62%,var(--p2))}
+.app{position:relative;z-index:1;width:100%;max-width:430px;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding-top:env(safe-area-inset-top,0px)}
+.bar{width:100%;display:flex;justify-content:space-between;align-items:center;padding:8px 10px;position:relative;z-index:6}.bar a{color:#fff;text-decoration:none;font-size:24px;font-weight:800;text-shadow:0 2px 4px #0008}.pill{background:#0006;border-radius:99px;padding:7px 14px;font-size:12px;font-weight:800;color:#fff;text-decoration:none}
+.top{position:relative;width:100%;height:150px;margin-top:-2px}.top .arc{position:absolute;bottom:0;left:2%;width:96%;height:78px}.top .mascot{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);width:128px;height:128px;filter:drop-shadow(0 6px 6px #0007);animation:bob 2.4s ease-in-out infinite}@keyframes bob{50%{transform:translateX(-50%) translateY(-4px)}}
+.frame{width:96%;position:relative;background:linear-gradient(var(--ac),var(--ac2));padding:7px;border-radius:5px;display:flex;gap:4px;box-shadow:0 10px 20px -8px #000}
+.pil{width:24px;background:linear-gradient(90deg,var(--p3),var(--b2) 50%,var(--p3));border-radius:3px;display:flex;flex-direction:column;justify-content:space-around;align-items:center;border:1px solid var(--bd)}
+.pil span{width:18px;height:18px;border-radius:50%;background:radial-gradient(#fff,var(--ac));color:var(--p3);font-size:11px;font-weight:900;display:grid;place-items:center;opacity:.6;transition:.2s}.pil span.on{opacity:1;box-shadow:0 0 10px #fff;transform:scale(1.25)}.pil i{width:10px;height:10px;border-radius:50%;background:#fff3}
+.reels{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:3px;background:var(--bd);padding:3px;border-radius:3px}
+.col{display:grid;grid-template-rows:repeat(3,1fr);gap:3px;overflow:hidden}.cell{aspect-ratio:1;background:linear-gradient(var(--c1),var(--c2));display:grid;place-items:center;position:relative;transition:.2s}.cell svg{width:84%;height:84%;overflow:visible}
+.col.spin .cell{animation:fall .11s linear infinite;filter:blur(1.5px)}@keyframes fall{from{transform:translateY(-40%)}to{transform:translateY(40%)}}
+.col.land .cell{animation:land .26s ease-out}@keyframes land{0%{transform:translateY(-70%)}60%{transform:translateY(7%)}100%{transform:none}}
+.reels.hasw .cell{opacity:.4}.reels.hasw .cell.win{opacity:1;background:linear-gradient(#fffbd0,var(--ac));box-shadow:inset 0 0 0 3px var(--ac2),0 0 16px var(--ac);animation:pulse .5s infinite alternate;z-index:2}@keyframes pulse{to{transform:scale(1.07)}}
+.cell em{position:absolute;bottom:2px;font-style:normal;font-family:'Lilita One',Impact,sans-serif;font-size:14px;letter-spacing:.5px;background:linear-gradient(var(--b1),var(--p1));color:var(--ac);padding:0 10px;border-radius:5px;border:2px solid var(--ac)}
+.panel{width:100%;margin-top:10px;flex:1;background:linear-gradient(var(--p1),var(--p2) 45%,var(--p3));border-top:4px solid var(--ac);padding:12px 10px calc(14px + env(safe-area-inset-bottom,0px));box-shadow:0 -8px 20px #0006;display:flex;flex-direction:column;align-items:center}
+.msg{width:100%;border:3px solid var(--ac);border-radius:10px;background:linear-gradient(var(--p1),var(--p3));text-align:center;padding:9px 6px;font-weight:900;color:#d9f99d;font-size:16px;text-shadow:0 2px 0 #0008;min-height:44px;box-shadow:inset 0 0 0 2px var(--bd)}
+.info{width:100%;display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:6px;margin-top:9px}.info div{background:var(--p3);border:2px solid var(--ac);border-radius:9px;padding:4px 6px 4px 30px;font-weight:900;font-size:13px;position:relative;text-align:center;line-height:1.1;display:flex;flex-direction:column;justify-content:center;min-height:38px}
+.info b{position:absolute;left:-6px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:50%;background:radial-gradient(#fff,var(--ac));border:2px solid var(--ac2);color:var(--p3);display:grid;place-items:center;font-size:13px}.info small{font-size:8px;color:var(--ac);font-weight:700;letter-spacing:.5px}
+.err{color:#fecaca;font-size:12px;font-weight:700;min-height:16px;text-align:center;margin-top:5px}
+.ctl{width:100%;display:flex;align-items:center;justify-content:space-between;margin-top:8px;gap:4px}.st{display:flex;flex-direction:column;gap:6px}
+.sb{width:46px;height:46px;border-radius:50%;border:3px solid var(--ac);background:radial-gradient(var(--b1),var(--p2));color:var(--ac);font-size:20px;font-weight:900;box-shadow:0 3px 6px #0007;position:relative}.sb small{position:absolute;bottom:-13px;left:0;right:0;font-size:8px;color:var(--ac);font-weight:800}.sb.on{background:radial-gradient(#4ade80,#15803d);color:#fff}.sb.sm{width:38px;height:38px;font-size:16px}
+.pm{width:44px;height:44px;border-radius:50%;border:2px solid var(--ac);background:var(--p3);color:var(--ac);font-size:26px;font-weight:900;line-height:1}
+.go{width:104px;height:104px;border-radius:50%;border:0;padding:0;background:radial-gradient(circle,#2aa86a 0 52%,var(--ac) 53% 62%,var(--ac2) 63% 68%,var(--p3) 69%);box-shadow:0 8px 18px #000a;transition:transform .15s}.go:active{transform:scale(.93)}.go svg{width:100%;height:100%}.go.run svg{animation:rot .8s linear infinite}@keyframes rot{to{transform:rotate(360deg)}}.go:disabled{opacity:.8}
+.modal{position:fixed;inset:0;background:#000b;display:none;align-items:flex-end;justify-content:center;z-index:20}.modal.on{display:flex}.sheet{background:var(--p2);border-top:3px solid var(--ac);width:100%;max-width:430px;max-height:80vh;overflow:auto;border-radius:20px 20px 0 0;padding:16px;font-size:13px}
+.sheet h3{margin:0 0 8px;color:var(--ac)}.pr{display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid #ffffff18}.pr svg{width:46px;height:46px}.pr b{margin-left:auto;font-size:15px}.x{float:right;background:#ffffff22;border:0;color:#fff;border-radius:99px;width:30px;height:30px}.sheet p{opacity:.8;line-height:1.4;font-size:12px}
+</style></head><body><div class="bg"></div>
+<svg width="0" height="0" style="position:absolute"><defs id="defs"></defs></svg>
+<div class="app">
+<div class="bar"><a href="/slots">‹</a><div class="pill" id="nome">…</div><a href="/carteira" class="pill">+ Depositar</a></div>
+<div class="top"><svg class="arc" viewBox="0 0 400 80" preserveAspectRatio="none"><path d="M0 80C50 22 130 6 200 6s150 16 200 74z" fill="var(--p1)" stroke="var(--ac)" stroke-width="5"/><path d="M0 80C50 30 130 16 200 16s150 14 200 64" fill="none" stroke="var(--ac)" stroke-width="2" opacity=".5"/></svg><div class="mascot" id="mascot"></div></div>
+<div class="frame"><div class="pil"><span>1</span><span>2</span><span>3</span></div><div class="reels" id="reels"></div><div class="pil"><span>4</span><span>5</span><i></i></div></div>
+<div class="panel"><div class="msg" id="msg">Faça sua aposta!</div>
+ <div class="info"><div><b>$</b><small>CRÉDITO</small><span id="cred">R$ 0,00</span></div><div><b>×</b><small>APOSTA</small><span id="apo">R$ 0,00</span></div><div><b>★</b><small>GANHO</small><span id="ganho">R$ 0,00</span></div></div>
+ <div class="err" id="err"></div>
+ <div class="ctl"><div class="st"><button class="sb sm" onclick="turbo=!turbo;this.classList.toggle('on',turbo)">⚡<small>TURBO</small></button><button class="sb sm" id="bA" onclick="toggleAuto()" style="margin-top:6px">⟳<small>AUTO</small></button></div>
+  <button class="pm" onclick="step(-1)">−</button><button class="go" id="go" onclick="spin()"><svg viewBox="0 0 100 100"><path d="M50 26a24 24 0 1 0 22 14" fill="none" stroke="#e9fff1" stroke-width="7" stroke-linecap="round"/><path d="M52 14l-4 15 15-3z" fill="#e9fff1"/></svg></button><button class="pm" onclick="step(1)">+</button>
+  <button class="sb sm" onclick="showInfo()">☰<small>MENU</small></button></div></div></div>
+<div class="modal" id="modal" onclick="if(event.target===this)this.classList.remove('on')"><div class="sheet" id="sheet"></div></div>
+<script src="/static/arte.js"></script>
+<script>
+const $=i=>document.getElementById(i),money=v=>'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const ID=location.pathname.split('/').pop(),T=ARTE.TEMAS[ID];if(!T)location.href='/slots';
+const A=ARTE.aplicar(T);let SV={};
+let I,BETS=[],bi=0,busy=false,auto=false,turbo=false,saldo=0,grid=[],tm=[];
+const sym=k=>k==='tigre'?SV[k]+'<em>WILD</em>':SV[k];const bet=()=>BETS[bi];
+async function api(p,b){const r=await fetch(p,b===undefined?{credentials:'same-origin'}:{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});if(r.status===401){location.href='/';return{ok:false}}return r.json()}
+function draw(g,hits){const set=new Set();(hits||[]).forEach(h=>I.linhas[h.linha].forEach((row,c)=>set.add(c+'-'+row)));
+ $('reels').className='reels'+(hits&&hits.length?' hasw':'');$('reels').innerHTML=g.map((col,c)=>`<div class="col" id="c${c}">${col.map((s,r)=>`<div class="cell ${set.has(c+'-'+r)?'win':''}">${sym(s)}</div>`).join('')}</div>`).join('');
+ const on=new Set((hits||[]).map(h=>h.linha+1));document.querySelectorAll('.pil span').forEach(e=>e.classList.toggle('on',on.has(+e.textContent)))}
+const rnd=()=>I.simbolos[Math.floor(Math.random()*7)];
+function refresh(){$('cred').textContent=money(saldo);$('apo').textContent=money(bet())}
+function step(d){if(busy)return;bi=Math.min(BETS.length-1,Math.max(0,bi+d));refresh()}
+function toggleAuto(){auto=!auto;$('bA').classList.toggle('on',auto);if(auto&&!busy)spin()}
+async function spin(){if(busy)return;busy=true;$('go').disabled=true;$('go').classList.add('run');$('err').textContent='';$('msg').textContent='Boa sorte!';$('ganho').textContent=money(0);draw(grid);
+ const cols=[0,1,2];tm=cols.map(c=>{$('c'+c).classList.add('spin');return setInterval(()=>document.querySelectorAll('#c'+c+' .cell').forEach(e=>e.innerHTML=sym(rnd())),80)});
+ const [res]=await Promise.all([api('/api/jogo/'+ID+'/spin',{valor:bet()}),sleep(turbo?300:750)]);
+ if(!res.ok){tm.forEach(clearInterval);cols.forEach(c=>$('c'+c).classList.remove('spin'));$('err').textContent=res.msg||'Erro.';$('msg').textContent='Faça sua aposta!';auto=false;$('bA').classList.remove('on');return fim()}
+ grid=res.grid;for(const c of cols){await sleep(turbo?60:300);clearInterval(tm[c]);const el=$('c'+c);el.classList.remove('spin');el.classList.add('land');el.querySelectorAll('.cell').forEach((e,r)=>e.innerHTML=sym(grid[c][r]))}
+ await sleep(280);draw(grid,res.linhas);saldo=res.saldo;$('cred').textContent=money(saldo);$('ganho').textContent=money(res.premio);
+ $('msg').textContent=res.premio>0?'🎉 Ganhou '+money(res.premio)+'!':'Faça sua aposta!';
+ await sleep(res.premio>0?(turbo?600:1400):(turbo?80:300));fim()}
+function fim(){busy=false;$('go').disabled=false;$('go').classList.remove('run');if(auto)spin()}
+function showInfo(){$('sheet').innerHTML=`<button class="x" onclick="modal.classList.remove('on')">✕</button><h3>Tabela de prêmios</h3><p>5 linhas (3 retas e 2 diagonais, numeradas nas laterais). Junte 3 símbolos iguais na linha. O símbolo <b>WILD</b> é curinga e substitui qualquer outro. O prêmio de cada linha é o multiplicador × (aposta ÷ 5).</p>`+
+ I.simbolos.map((k,i)=>[k,i]).reverse().map(([k,i])=>`<div class="pr">${SV[k]}<span style="font-size:12px;opacity:.7">${k==='tigre'?'3 WILD (curinga)':'3 iguais'}</span><b>${I.pay[i]}x</b></div>`).join('')+`<p>Prêmio máximo limitado pela casa. Jogue com responsabilidade — +18.</p>`;$('modal').classList.add('on')}
+(async()=>{I=await api('/api/jogo/'+ID+'/info');if(!I.ok)return;document.title=I.nome+' • Bola Esportiva';$('nome').textContent=I.nome;
+ I.simbolos.forEach((k,i)=>SV[k]=i<6?A.SY[i]:A.W);$('mascot').innerHTML=A.W;
+ saldo=I.saldo;BETS=[1,2,5,10,20,50,100].filter(v=>v>=I.min&&v<=I.max);grid=Array.from({length:3},()=>Array.from({length:3},rnd));draw(grid);refresh()})();
+</script></body></html>
