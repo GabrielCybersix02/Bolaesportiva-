@@ -14,9 +14,16 @@ iso = lambda: datetime.now(timezone.utc).isoformat()
 CATALOGO = [
     dict(id="jackpot", nome="Fruity Jackpot", cat="slots", emoji="🍒", c1="#7B2FF7", c2="#F107A3", tag="HOT"),
     dict(id="aviator", nome="Aviator", cat="crash", emoji="✈️", c1="#E50539", c2="#1a1a2e", tag="NOVO"),
-    dict(id="breve1", nome="Fortune Ox", cat="slots", emoji="🐂", c1="#F59E0B", c2="#B91C1C", breve=True),
+    dict(id="tigrinho", nome="Tigrinho 777", cat="slots", emoji="🐯", c1="#FF8A00", c2="#E0360B", tag="NOVO"),
     dict(id="tigre", nome="Tigre Dourado", cat="slots", emoji="🐯", c1="#EF4444", c2="#7F1D1D", tag="NOVO"),
-    dict(id="breve3", nome="Coelho Ninja", cat="slots", emoji="🐰", c1="#06B6D4", c2="#7C3AED", breve=True),
+    dict(id="coelho", nome="Coelho Sortudo", cat="slots", emoji="🐰", c1="#38BDF8", c2="#7C3AED", tag="NOVO"),
+    dict(id="dragao", nome="Dragão Dourado", cat="slots", emoji="🐲", c1="#E11D8F", c2="#5B21B6", tag="NOVO"),
+    dict(id="boi", nome="Boi da Fortuna", cat="slots", emoji="🐂", c1="#2563EB", c2="#0EA5E9", tag="NOVO"),
+    dict(id="cobra", nome="Cobra Esmeralda", cat="slots", emoji="🐍", c1="#15803D", c2="#064E3B", tag="NOVO"),
+    dict(id="panda", nome="Panda Zen", cat="slots", emoji="🐼", c1="#16A34A", c2="#EC4899", tag="NOVO"),
+    dict(id="cavalo", nome="Cavalo Imperial", cat="slots", emoji="🐴", c1="#B45309", c2="#451A03", tag="NOVO"),
+    dict(id="olimpo", nome="Trovão Olímpico", cat="slots", emoji="⚡", c1="#1E3A8A", c2="#7C3AED", tag="NOVO"),
+    dict(id="doce", nome="Doce Fortuna", cat="slots", emoji="🍭", c1="#F472B6", c2="#8B5CF6", tag="NOVO"),
     dict(id="mines", nome="Mines", cat="crash", emoji="💎", c1="#2563EB", c2="#0B2A6B", tag="NOVO"),
 ]
 
@@ -74,6 +81,20 @@ def tg_eval(grid, stake):
             k = nw.pop() if nw else 6; m = TG["pay"][k]; win += m * stake / 5; hits.append(dict(linha=i, simbolo=TG["simbolos"][k], mult=m))
     return int(win), hits
 
+# ------------------------------------------------------------------ "Tigrinho 777" (regras do app Java: 3 rolos, 5 simbolos, cada rolo sorteia 1 de 5)
+TJ = dict(nome="Tigrinho 777", min=100, max=50000, simbolos=["sete", "coracao", "cereja", "diamante", "espadilha"], pay=[17, 13, 10, 8, 6])   # 3 iguais: devolve aposta + aposta x mult
+def tj_eval(r, stake):
+    """3 iguais = aposta + aposta x mult | 2 iguais = perde metade (devolve 50%) | todos diferentes = perde tudo. Devolve (total_devolvido, tipo, mult)"""
+    if r[0] == r[1] == r[2]: m = TJ["pay"][r[0]]; return stake * (m + 1), "tres", m
+    if len(set(r)) == 3: return 0, "nada", 0
+    return stake // 2, "par", 0
+def rtp_tigrinho():                                   # exato: 125 combinacoes igualmente provaveis
+    return sum(tj_eval([a, b, c], 1000)[0] / 1000 for a in range(5) for b in range(5) for c in range(5)) / 125
+
+# ------------------------------------------------------------------ JOGOS TEMATICOS (mesma matematica dos motores acima, so muda tema/arte no navegador)
+NOVOS = {"coelho": "linhas", "dragao": "linhas", "boi": "linhas", "cobra": "linhas", "panda": "linhas", "cavalo": "linhas", "olimpo": "cluster", "doce": "cluster"}   # linhas = 3x3 como o Tigre Dourado | cluster = 6x5 como o Fruity Jackpot
+NOMES = {c["id"]: c["nome"] for c in CATALOGO}
+
 # ------------------------------------------------------------------ AVIATOR
 AV_RTP = min(max(float(os.environ.get("AVIATOR_RTP", "97")), 80), 99.5) / 100     # retorno ao jogador; (1-RTP) = lucro da casa
 AV_MAX = int(float(os.environ.get("AVIATOR_MAX_X", "1000")) * 100)
@@ -106,7 +127,8 @@ def register(app, db, raw, need, tx, err, cents, MAX_PREMIO, BASE):
     @app.get("/slots/jogo/<jogo>")
     def slots_jogo(jogo):
         if not entrar(): return redirect("/")
-        return pagina({"jackpot": "slot_game.html", "aviator": "aviator.html", "tigre": "tigre.html", "mines": "mines.html"}.get(jogo, "slots.html"))
+        if jogo in NOVOS: return pagina("jogo_%s.html" % NOVOS[jogo])
+        return pagina({"jackpot": "slot_game.html", "aviator": "aviator.html", "tigre": "tigre.html", "mines": "mines.html", "tigrinho": "tigrinho.html"}.get(jogo, "slots.html"))
     @app.get("/api/slots")
     @need("usuario")
     def slots_lobby(u): return jsonify(ok=True, saldo=u["saldo"] / 100, jogos=CATALOGO)
@@ -154,6 +176,56 @@ def register(app, db, raw, need, tx, err, cents, MAX_PREMIO, BASE):
         except Exception:
             c.execute("ROLLBACK"); raise
         return jsonify(ok=True, grid=[[TG["simbolos"][x] for x in col] for col in grid], linhas=hits, premio=win / 100, saldo=(saldo - stake + win) / 100)
+
+    @app.get("/api/slots/tigrinho/info")
+    @need("usuario")
+    def tj_info(u): return jsonify(ok=True, saldo=u["saldo"] / 100, min=TJ["min"] / 100, max=TJ["max"] / 100, simbolos=TJ["simbolos"], pay=TJ["pay"])
+    @app.post("/api/slots/tigrinho/spin")
+    @need("usuario")
+    def tj_spin(u):
+        stake = cents((request.get_json(silent=True) or {}).get("valor"))
+        if not TJ["min"] <= stake <= TJ["max"]: return err("Aposta de R$ %.2f a R$ %.2f." % (TJ["min"] / 100, TJ["max"] / 100))
+        c = db(); c.execute("BEGIN")
+        try:
+            saldo = c.execute("SELECT saldo FROM users WHERE id=? FOR UPDATE", (u["id"],)).fetchone()[0]
+            if stake > saldo: c.execute("ROLLBACK"); return err("Saldo insuficiente. Faça um depósito.")
+            r = [RNG.randrange(5) for _ in range(3)]; total, tipo, m = tj_eval(r, stake); total = min(total, MAX_PREMIO)
+            c.execute("UPDATE users SET saldo=saldo-?+? WHERE id=?", (stake, total, u["id"]))
+            c.execute("INSERT INTO slot_spins(data,user_id,jogo,aposta,premio,grid) VALUES(?,?,?,?,?,?)", (iso(), u["id"], "tigrinho", stake, total, json.dumps(r)))
+            tx(c, "slot", u["id"], None, stake, "Slot %s: aposta R$ %.2f, retorno R$ %.2f" % (TJ["nome"], stake / 100, total / 100)); c.execute("COMMIT")
+        except Exception:
+            c.execute("ROLLBACK"); raise
+        return jsonify(ok=True, rolos=[TJ["simbolos"][x] for x in r], tipo=tipo, mult=m, premio=total / 100, saldo=(saldo - stake + total) / 100)
+
+    @app.get("/api/jogo/<jid>/info")
+    @need("usuario")
+    def nv_info(u, jid):
+        k = NOVOS.get(jid)
+        if not k: return err("Jogo não encontrado.", 404)
+        d = dict(ok=True, kind=k, saldo=u["saldo"] / 100, nome=NOMES[jid], min=100 / 100, max=10000 / 100)
+        if k == "linhas": d.update(simbolos=TG["simbolos"], pay=TG["pay"], linhas=TG["linhas"])
+        else: d.update(ordem=list(G["peso"]), pay=G["pay"], cols=G["cols"], rows=G["rows"], jackpots=[dict(nome=n, coroas=q, mult=m) for n, q, m in G["jackpots"]], rtp=round(rtp_slot() * 100, 2))
+        return jsonify(d)
+    @app.post("/api/jogo/<jid>/spin")
+    @need("usuario")
+    def nv_spin(u, jid):
+        k = NOVOS.get(jid)
+        if not k: return err("Jogo não encontrado.", 404)
+        stake = cents((request.get_json(silent=True) or {}).get("valor")); lim = TG if k == "linhas" else G
+        if not lim["min"] <= stake <= lim["max"]: return err("Aposta de R$ %.2f a R$ %.2f." % (lim["min"] / 100, lim["max"] / 100))
+        c = db(); c.execute("BEGIN")
+        try:
+            saldo = c.execute("SELECT saldo FROM users WHERE id=? FOR UPDATE", (u["id"],)).fetchone()[0]
+            if stake > saldo: c.execute("ROLLBACK"); return err("Saldo insuficiente. Faça um depósito.")
+            if k == "linhas": grid = tg_spin(); win, hits = tg_eval(grid, stake); extra = dict(linhas=hits); out = [[TG["simbolos"][x] for x in col] for col in grid]
+            else: grid = spin_grid(); win, vit, jp = evaluate(grid, stake); extra = dict(vitorias=vit, jackpot=jp); out = grid
+            win = min(win, MAX_PREMIO)
+            c.execute("UPDATE users SET saldo=saldo-?+? WHERE id=?", (stake, win, u["id"]))
+            c.execute("INSERT INTO slot_spins(data,user_id,jogo,aposta,premio,grid) VALUES(?,?,?,?,?,?)", (iso(), u["id"], jid, stake, win, json.dumps(grid)))
+            tx(c, "slot", u["id"], None, stake, "Slot %s: aposta R$ %.2f, prêmio R$ %.2f" % (NOMES[jid], stake / 100, win / 100)); c.execute("COMMIT")
+        except Exception:
+            c.execute("ROLLBACK"); raise
+        return jsonify(ok=True, grid=out, premio=win / 100, saldo=(saldo - stake + win) / 100, **extra)
 
     # ---------------------------------------------------------- Aviator
     def creditar(c, uid, valor, desc):
