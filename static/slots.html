@@ -4,31 +4,69 @@
 <link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{margin:0;font-family:Inter,system-ui,sans-serif;background:#1b0f33;color:#fff;min-height:100vh;padding-bottom:30px}
-header{position:sticky;top:0;z-index:5;background:#241346;border-bottom:1px solid #ffffff14;padding:12px 14px;padding-top:calc(12px + env(safe-area-inset-top,0px));display:flex;align-items:center;justify-content:space-between;gap:10px}
-header a{color:#fff;text-decoration:none;font-weight:800;font-size:14px}.logo{font-family:'Lilita One',Impact,sans-serif;font-size:24px;color:#ff3fb0;letter-spacing:.5px}
-.saldo{background:#ffffff14;border-radius:999px;padding:7px 13px;font-weight:800;font-size:13px}.saldo small{opacity:.6;font-weight:700;margin-right:4px;font-size:10px}
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 14px}.tabs button{min-width:0;border:0;border-radius:12px;padding:13px 4px;font-weight:800;font-size:15px;background:#2a1a4a;color:#fff;font-family:inherit}
-.tabs button.on{background:#e6168f;box-shadow:0 6px 16px -6px #e6168f}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:6px 14px;max-width:560px;margin:0 auto}
+body{margin:0;font-family:Inter,system-ui,sans-serif;background:radial-gradient(120% 40% at 50% 0,#3a1a6e,#1b0f33 60%);color:#fff;min-height:100vh;padding-bottom:30px}
+header{position:sticky;top:0;z-index:5;background:#241346ee;backdrop-filter:blur(8px);border-bottom:1px solid #ffffff14;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top,0px));display:flex;align-items:center;justify-content:space-between;gap:10px}
+header a{color:#fff;text-decoration:none;font-weight:800;font-size:22px}.logo{font-family:'Lilita One',Impact,sans-serif;font-size:26px;background:linear-gradient(#ffe6f5,#ff3fb0 55%,#b8127a);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 0 #4a0a36)}
+.saldo{display:flex;align-items:center;gap:6px;background:#ffffff14;border-radius:99px;padding:6px 8px 6px 13px;font-weight:800;font-size:13px;text-decoration:none;color:#fff}.saldo small{opacity:.6;font-weight:700;font-size:9px}.saldo i{font-style:normal;width:22px;height:22px;border-radius:50%;background:linear-gradient(#4ade80,#16a34a);display:grid;place-items:center;font-size:15px}
+.wrap{max-width:560px;margin:0 auto;padding:0 14px}
+.aviso{display:none;margin:10px 14px 0;background:#7f1d1d;border:2px solid #fca5a5;border-radius:12px;padding:10px 12px;font-size:12px;font-weight:700;line-height:1.4}
+.perfil{margin-top:12px;background:linear-gradient(135deg,#ffffff1a,#ffffff08);border:1px solid #ffffff22;border-radius:16px;padding:12px 14px;display:flex;align-items:center;gap:12px}
+.medal{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-size:22px;flex:none;box-shadow:inset 0 0 0 3px #fff6,0 4px 10px #0006}
+.pf{flex:1;min-width:0}.pf b{display:block;font-size:14px}.pf small{opacity:.7;font-size:11px}.bar{height:7px;background:#0005;border-radius:9px;margin-top:6px;overflow:hidden}.bar i{display:block;height:100%;border-radius:9px;background:linear-gradient(90deg,#ffd45a,#ff9a1f);width:0;transition:width .8s}
+.tk{margin-top:10px;display:none;overflow:hidden;background:#0004;border-radius:99px;border:1px solid #ffd45a55;position:relative;height:34px}.tk b{position:absolute;left:0;top:0;bottom:0;z-index:2;background:linear-gradient(90deg,#b8127a,#e6168f);padding:0 12px;display:grid;place-items:center;font-size:11px;border-radius:99px 0 0 99px}
+.tk div{display:flex;gap:34px;white-space:nowrap;position:absolute;left:92px;top:0;line-height:34px;font-size:12px;font-weight:700;animation:tk 28s linear infinite}.tk span em{font-style:normal;color:#ffd45a}@keyframes tk{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.busca{margin-top:12px;position:relative}.busca input{width:100%;background:#ffffff12;border:1.5px solid #ffffff22;border-radius:14px;padding:12px 14px 12px 40px;color:#fff;font-size:15px;font-family:inherit;outline:0}.busca input:focus{border-color:#ff3fb0}.busca span{position:absolute;left:14px;top:11px;opacity:.6}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:12px 0}.tabs button{min-width:0;border:0;border-radius:12px;padding:12px 2px;font-weight:800;font-size:13px;background:#2a1a4a;color:#fff;font-family:inherit}.tabs button.on{background:linear-gradient(#ff3fb0,#d1107f);box-shadow:0 6px 16px -6px #e6168f}
+h4{margin:14px 0 8px;font-size:13px;color:#ffd45a;letter-spacing:.5px;text-transform:uppercase}
+.rec{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:4px}.rec::-webkit-scrollbar{display:none}.rec .card{flex:0 0 118px;aspect-ratio:1/1.05}.rec .nm{font-size:15px!important}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding-bottom:6px}
 .card{position:relative;aspect-ratio:1/.9;border-radius:20px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;text-align:center;box-shadow:0 12px 22px -12px #000,inset 0 0 0 2px #ffffff30;transition:transform .15s}
 .card:active{transform:scale(.97)}.card::before{content:"";position:absolute;left:50%;top:38%;width:230%;aspect-ratio:1;margin-left:-115%;margin-top:-115%;background:repeating-conic-gradient(#ffffff26 0 7deg,#0000 7deg 14deg);-webkit-mask:radial-gradient(circle,#000 6%,transparent 38%);mask:radial-gradient(circle,#000 6%,transparent 38%);animation:rr 50s linear infinite}@keyframes rr{to{transform:rotate(360deg)}}
 .card::after{content:"";position:absolute;inset:0;background:linear-gradient(#0000 55%,#000a)}
-.card .art{position:absolute;left:14%;right:14%;top:5%;bottom:24%;z-index:1;filter:drop-shadow(0 8px 6px #0008)}.card .art svg{width:100%;height:100%;overflow:visible}.card .em{position:absolute;top:12%;font-size:62px;z-index:1}
-.card .nm{position:relative;z-index:2;font-family:'Lilita One',Impact,sans-serif;font-size:21px;line-height:1;padding:0 8px 10px;background:linear-gradient(#fffbd0,#ffd23a 55%,#e0861a);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:1px #5a2a00;filter:drop-shadow(0 2px 0 #5a2a00)}
-.star{position:absolute;top:9px;left:9px;z-index:3;width:30px;height:30px;border-radius:50%;background:#0006;display:grid;place-items:center;font-size:15px;color:#ffffffcc}
+.card .art{position:absolute;left:14%;right:14%;top:5%;bottom:24%;z-index:1;filter:drop-shadow(0 8px 6px #0008)}.card .art svg,.card .art img{width:100%;height:100%;object-fit:contain;overflow:visible}.card .em{position:absolute;top:12%;font-size:62px;z-index:1}
+.card.cheio .art{left:0;right:0;top:0;bottom:0}.card.cheio .art img{object-fit:cover}
+.card .nm{position:relative;z-index:2;font-family:'Lilita One',Impact,sans-serif;font-size:20px;line-height:1;padding:0 8px 10px;background:linear-gradient(#fffbd0,#ffd23a 55%,#e0861a);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:.8px #5a2a00;filter:drop-shadow(0 2px 0 #5a2a00)}
+.star{position:absolute;top:8px;left:8px;z-index:3;width:32px;height:32px;border-radius:50%;background:#0007;display:grid;place-items:center;font-size:16px;color:#ffffffcc;border:0}.star.on{color:#ffd45a;background:#000a}
 .tag{position:absolute;top:9px;right:9px;z-index:3;background:linear-gradient(#fff,#ffe4f3);color:#c2127f;font-size:10px;font-weight:900;padding:3px 8px;border-radius:99px;box-shadow:0 2px 6px #0005}
+.vazio{text-align:center;opacity:.6;padding:40px 10px;font-size:14px}.rodape{text-align:center;opacity:.4;font-size:10px;margin-top:20px}
 </style></head><body>
-<header><a href="/">←</a><span class="logo">Cassino</span><a href="/carteira" class="saldo" style="color:#fff;text-decoration:none"><small>SALDO</small><span id="saldo">R$ 0,00</span> &nbsp;<b style="color:#4ade80">+</b></a></header>
 <svg width="0" height="0" style="position:absolute"><defs id="defs"></defs></svg>
-<div class="tabs" id="tabs"></div><div class="grid" id="grid"></div>
+<header><a href="/">←</a><span class="logo">Cassino</span><a class="saldo" href="/carteira"><span><small>SALDO</small> <span id="saldo">R$ 0,00</span></span><i>+</i></a></header>
+<div class="aviso" id="aviso"></div>
+<div class="wrap">
+ <div class="perfil"><div class="medal" id="medal">🥉</div><div class="pf"><b id="pnome">Jogador</b><small id="pniv">Nível Bronze</small><div class="bar"><i id="pbar"></i></div></div></div>
+ <div class="tk" id="tk"><b>🏆 PRÊMIOS</b><div id="tkin"></div></div>
+ <div class="busca"><span>🔍</span><input id="q" placeholder="Buscar jogo…" oninput="render()"></div>
+ <div class="tabs" id="tabs"></div>
+ <div id="rec"></div><div class="grid" id="grid"></div><div class="vazio" id="vazio" style="display:none"></div>
+ <div class="rodape" id="rodape"></div>
+</div>
 <script src="/static/arte.js"></script>
 <script>
-const $=i=>document.getElementById(i),money=v=>'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
-const CATS=[['todos','Todos'],['slots','Slots'],['crash','Crash']];let J=[],cat='todos';
-function render(){$('tabs').innerHTML=CATS.map(([k,n])=>`<button class="${k===cat?'on':''}" onclick="cat='${k}';render()">${n}</button>`).join('');
- $('grid').innerHTML=J.filter(g=>cat==='todos'||g.cat===cat).map(g=>{const T=ARTE.TEMAS[g.id],c1=T?T.b1:g.c1,c2=T?T.b2:g.c2,art=ARTE.capa(g.id);return `<div class="card" style="background:radial-gradient(circle at 50% 35%,${c1},${c2})" onclick="location.href='/slots/jogo/${g.id}'">
-  <div class="star">☆</div>${g.tag?`<div class="tag">${g.tag}</div>`:''}${art?`<div class="art">${art}</div>`:`<div class="em">${g.emoji}</div>`}<div class="nm">${g.nome}</div></div>`}).join('');ARTE.injetar()}
-(async()=>{const r=await fetch('/api/slots',{credentials:'same-origin'});if(r.status===401){location.href='/';return}const d=await r.json();if(!d.ok)return;
- J=d.jogos;$('saldo').textContent=money(d.saldo);render()})();
+const $=i=>document.getElementById(i),money=v=>'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+if(!(typeof ARTE!=='undefined'&&ARTE.v>=5)){document.body.innerHTML='<div style="padding:40px 24px;text-align:center"><h3>Atualizando…</h3><p>O arquivo <b>arte.js</b> do servidor está desatualizado. Envie o arte.js novo e atualize a página.</p></div>';throw new Error('arte.js antigo')}
+const CATS=[['todos','Todos'],['fav','⭐ Favoritos'],['slots','Slots'],['crash','Crash']];let J=[],cat='todos',SK={};
+const ls=(k,d)=>{try{return JSON.parse(localStorage.getItem(k)||d)}catch(e){return JSON.parse(d)}},sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+const favs=()=>ls('fav','[]');
+function toggleFav(id,ev){ev.stopPropagation();let f=favs();f=f.includes(id)?f.filter(x=>x!==id):[...f,id];sv('fav',f);render()}
+function abrir(id){let r=ls('rec','[]').filter(x=>x!==id);r.unshift(id);sv('rec',r.slice(0,8));location.href='/slots/jogo/'+id}
+function card(g){const T=ARTE.TEMAS[g.id],c1=T?T.b1:g.c1,c2=T?T.b2:g.c2,sk=SK[g.id],cheia=!!(sk&&sk.capa),art=cheia?`<img src="${sk.capa}" alt="">`:ARTE.capa(g.id);
+ return `<div class="card ${cheia?'cheio':''}" style="background:radial-gradient(circle at 50% 35%,${c1},${c2})" onclick="abrir('${g.id}')"><button class="star ${favs().includes(g.id)?'on':''}" onclick="toggleFav('${g.id}',event)">${favs().includes(g.id)?'★':'☆'}</button>${g.tag?`<div class="tag">${g.tag}</div>`:''}${art?`<div class="art">${art}</div>`:`<div class="em">${g.emoji}</div>`}<div class="nm">${g.nome}</div></div>`}
+function render(){const q=($('q').value||'').trim().toLowerCase(),f=favs();
+ $('tabs').innerHTML=CATS.map(([k,n])=>`<button class="${k===cat?'on':''}" onclick="cat='${k}';render()">${n}</button>`).join('');
+ let L=J.filter(g=>(cat==='todos'||(cat==='fav'?f.includes(g.id):g.cat===cat))&&(!q||g.nome.toLowerCase().includes(q)));
+ const rec=ls('rec','[]').map(id=>J.find(g=>g.id===id)).filter(Boolean).slice(0,6);
+ $('rec').innerHTML=(cat==='todos'&&!q&&rec.length)?'<h4>Continue jogando</h4><div class="rec">'+rec.map(card).join('')+'</div><h4>Todos os jogos</h4>':'';
+ $('grid').innerHTML=L.map(card).join('');
+ $('vazio').style.display=L.length?'none':'block';$('vazio').textContent=cat==='fav'?'Toque na ☆ de um jogo para guardá-lo aqui.':'Nenhum jogo encontrado.';ARTE.injetar()}
+async function api(p){try{const r=await fetch(p,{credentials:'same-origin'});if(r.status===401){location.href='/';return{ok:false}}return await r.json()}catch(e){return{ok:false}}}
+(async()=>{try{
+ const d=await api('/api/slots');if(!d.ok){$('vazio').style.display='block';$('vazio').textContent='Não foi possível carregar os jogos. Atualize a página.';return}
+ J=d.jogos;$('saldo').textContent=money(d.saldo);$('rodape').textContent='Servidor v'+(d.versao||'?')+' • Jogue com responsabilidade — +18';
+ if(d.versao&&ARTE.versao&&d.versao!==ARTE.versao){$('aviso').style.display='block';$('aviso').innerHTML='⚠️ Atualização incompleta no servidor (slots.py <b>v'+d.versao+'</b> × arte.js <b>v'+ARTE.versao+'</b>). Envie TODOS os arquivos do pacote e limpe o cache do navegador.'}
+ SK=await ARTE.skins();SK=Object.fromEntries(J.map(g=>[g.id,null]).concat([]));for(const g of J)SK[g.id]=await ARTE.skin(g.id);
+ render();
+ const p=await api('/api/slots/perfil');if(p.ok){const M=['🥉','🥈','🥇','💎','👑'],C=['#cd7f32,#7a4a1a','#e8edf5,#8f9bb0','#ffe27a,#c98a14','#9af0ff,#2ba3c8','#d6b3ff,#7c3aed'];$('pnome').textContent=p.nome;$('pniv').textContent='Nível '+p.nivel+(p.prox_nome?' • faltam '+money(Math.max(0,p.prox-p.total))+' em apostas para '+p.prox_nome:' • nível máximo!');$('medal').textContent=M[p.indice];$('medal').style.background='linear-gradient(135deg,'+C[p.indice]+')';setTimeout(()=>$('pbar').style.width=Math.round(p.progresso*100)+'%',200)}
+ const t=await api('/api/slots/destaques');if(t.ok&&t.itens.length){const h=t.itens.map(i=>`<span>${i.nome} ganhou <em>${money(i.premio)}</em> (${i.mult}x) em ${i.jogo}</span>`).join('');$('tkin').innerHTML=h+h;$('tk').style.display='block'}
+}catch(e){$('vazio').style.display='block';$('vazio').textContent='Erro ao carregar: '+(e.message||e)}})();
 </script></body></html>
