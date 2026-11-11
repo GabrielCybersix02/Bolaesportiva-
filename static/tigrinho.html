@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<title>Tigrinho 777 • Bola Esportiva</title><meta name="theme-color" content="#e0360b">
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{margin:0;min-height:100%}body{font-family:Inter,system-ui,sans-serif;color:#fff;display:flex;justify-content:center;background:#e0360b}
+.app{width:100%;max-width:430px;min-height:100vh;padding:env(safe-area-inset-top,0px) 14px calc(16px + env(safe-area-inset-bottom,0px));background:repeating-linear-gradient(115deg,#ffffff0d 0 3px,#0000 3px 22px),linear-gradient(160deg,#ff9a00,#ff5a00 55%,#d92b0a);display:flex;flex-direction:column;align-items:center}
+.bar{width:100%;display:flex;justify-content:space-between;align-items:center;padding:10px 0}.bar a{color:#fff;text-decoration:none;font-weight:800}.bar .p{background:#0004;border-radius:99px;padding:7px 14px;font-size:12px}.bar .b{font-size:24px}
+.hero{display:flex;align-items:center;gap:10px;margin:2px 0 6px}.hero svg{width:96px;height:96px;filter:drop-shadow(0 6px 6px #0006);animation:bob 2.4s ease-in-out infinite}@keyframes bob{50%{transform:translateY(-5px)}}
+.logo{font-family:'Lilita One',Impact,sans-serif;font-size:38px;line-height:.95;color:#ffe27a;-webkit-text-stroke:2px #8a2200;paint-order:stroke fill;text-shadow:0 4px 0 #8a2200;transform:rotate(-3deg)}.logo small{display:block;font-size:20px;color:#fff;letter-spacing:2px}
+.slot{width:100%;background:#fff6e6;border:5px solid #7a1d00;border-radius:22px;padding:12px;box-shadow:0 10px 0 #7a1d00,0 18px 28px #0006;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:4px}
+.reel{aspect-ratio:.82;background:#fff;border-radius:14px;border:3px solid #f0d6b0;box-shadow:inset 0 0 16px #0002;display:grid;place-items:center;overflow:hidden}.reel svg{width:80%;height:80%}
+.reel.spin svg{animation:fall .1s linear infinite;filter:blur(1.5px)}@keyframes fall{from{transform:translateY(-45%)}to{transform:translateY(45%)}}.reel.land svg{animation:land .3s ease-out}@keyframes land{0%{transform:translateY(-70%)}60%{transform:translateY(8%)}100%{transform:none}}
+.reel.win{background:#fff3b0;border-color:#f5b82e;animation:pulse .5s infinite alternate}@keyframes pulse{to{transform:scale(1.06)}}
+.msg{margin-top:20px;font-weight:900;font-size:19px;text-align:center;min-height:26px;text-shadow:0 2px 0 #7a1d00}
+.stats{width:100%;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}.stats div{background:#0003;border-radius:12px;padding:7px 2px;text-align:center;font-weight:900;font-size:12px;line-height:1.2}.stats small{display:block;font-size:9px;color:#ffe27a;letter-spacing:.5px;font-weight:700}
+.bet{width:100%;display:flex;align-items:center;gap:8px;margin-top:14px}.pm{width:50px;height:50px;border-radius:50%;border:0;background:#fff;color:#c2300a;font-size:28px;font-weight:900;box-shadow:0 4px 0 #7a1d00;flex:none}.pm:active{transform:translateY(3px);box-shadow:0 1px 0 #7a1d00}
+.val{flex:1;background:#fff;color:#7a1d00;border-radius:14px;text-align:center;font-weight:900;font-size:22px;padding:7px 0;box-shadow:inset 0 2px 6px #0003}.val small{display:block;font-size:10px;color:#c2300a;font-weight:700}
+.mx{height:50px;padding:0 14px;border-radius:14px;border:0;background:#ffe27a;color:#7a1d00;font-weight:900;font-size:14px;box-shadow:0 4px 0 #a86a00;flex:none}
+.go{width:100%;margin-top:14px;height:64px;border:0;border-radius:18px;background:linear-gradient(#4ade80,#16a34a);color:#fff;font-size:24px;font-weight:900;letter-spacing:1px;box-shadow:0 6px 0 #0b5b2a,0 10px 18px #0005;font-family:inherit}.go:active:not(:disabled){transform:translateY(4px);box-shadow:0 2px 0 #0b5b2a}.go:disabled{opacity:.65}
+.err{color:#fff;background:#0005;border-radius:10px;font-size:12px;font-weight:700;text-align:center;padding:6px;margin-top:8px;width:100%;display:none}.links{margin-top:14px;display:flex;gap:10px}.links button{background:#0003;color:#fff;border:0;border-radius:99px;padding:9px 18px;font-weight:800;font-size:13px;font-family:inherit}
+.modal{position:fixed;inset:0;background:#000b;display:none;align-items:flex-end;justify-content:center;z-index:20}.modal.on{display:flex}.sheet{background:#fff6e6;color:#4a1500;width:100%;max-width:430px;max-height:82vh;overflow:auto;border-radius:20px 20px 0 0;padding:16px;font-size:13px;line-height:1.45}.sheet h3{margin:0 0 6px;color:#c2300a}.x{float:right;background:#0002;border:0;border-radius:99px;width:30px;height:30px}
+.pr{display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid #0001}.pr svg{width:36px;height:36px}.pr b{margin-left:auto;font-size:17px;color:#c2300a}.pr.s{background:#ffe0d6;border-radius:8px;padding:6px 8px;margin-top:6px}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute"><defs>
+<linearGradient id="r1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff5a5a"/><stop offset="1" stop-color="#b00f1c"/></linearGradient>
+<linearGradient id="d1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#bdf1ff"/><stop offset=".5" stop-color="#3bb4ee"/><stop offset="1" stop-color="#0b78c4"/></linearGradient>
+<linearGradient id="gT" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb347"/><stop offset="1" stop-color="#f0700a"/></linearGradient>
+<linearGradient id="gG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3a0"/><stop offset="1" stop-color="#d9962a"/></linearGradient>
+<linearGradient id="gR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff4a4f"/><stop offset="1" stop-color="#a50f1a"/></linearGradient>
+</defs></svg>
+<div class="app">
+<div class="bar"><a class="b" href="/slots">‹</a><span class="p">Tigrinho 777</span><a class="p" href="/carteira">+ Depositar</a></div>
+<div class="hero"><div id="mascot"></div><div class="logo">Tigrinho<small>777</small></div></div>
+<div class="slot" id="slot"></div>
+<div class="msg" id="msg">Faça sua aposta!</div>
+<div class="stats"><div><small>SALDO</small><span id="sal">R$ 0,00</span></div><div><small>APOSTA</small><span id="apo">R$ 0,00</span></div><div><small>RETORNO</small><span id="ret">R$ 0,00</span></div><div><small>GIROS</small><span id="gir">0</span></div></div>
+<div class="bet"><button class="pm" onclick="step(-1)">−</button><div class="val"><small>VALOR DA APOSTA</small><span id="bv">R$ 1,00</span></div><button class="pm" onclick="step(1)">+</button><button class="mx" onclick="maxBet()">MAX</button></div>
+<button class="go" id="go" onclick="spin()">APOSTAR</button><div class="err" id="err"></div>
+<div class="links"><button onclick="help()">Instruções</button></div>
+</div>
+<div class="modal" id="modal" onclick="if(event.target===this)this.classList.remove('on')"><div class="sheet" id="sheet"></div></div>
+<script src="/static/arte.js"></script>
+<script>
+const $=i=>document.getElementById(i),money=v=>'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const V=b=>`<svg viewBox="0 0 100 100">${b}</svg>`;
+const SV={
+ sete:V(`<text x="50" y="84" font-size="104" font-family="'Lilita One',Impact,'Arial Black',sans-serif" text-anchor="middle" fill="url(#r1)" stroke="#f5b82e" stroke-width="7" paint-order="stroke" style="paint-order:stroke">7</text><text x="50" y="84" font-size="104" font-family="'Lilita One',Impact,'Arial Black',sans-serif" text-anchor="middle" fill="url(#r1)">7</text>`),
+ coracao:V(`<path d="M50 90C8 60 4 28 27 19c12-4 21 3 23 12 2-9 11-16 23-12 23 9 19 41-23 71z" fill="url(#r1)" stroke="#8e0c16" stroke-width="3"/><ellipse cx="30" cy="32" rx="9" ry="5" transform="rotate(-30 30 32)" fill="#fff" opacity=".5"/>`),
+ cereja:V(`<path d="M30 62Q38 26 66 10M72 64Q70 30 66 10" stroke="#3b8a2a" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M66 10q18-4 24 8-16 4-24-8z" fill="#4cc03a" stroke="#2d7a1f" stroke-width="2"/><circle cx="30" cy="70" r="22" fill="url(#r1)" stroke="#8e0c16" stroke-width="3"/><circle cx="72" cy="72" r="22" fill="url(#r1)" stroke="#8e0c16" stroke-width="3"/><ellipse cx="22" cy="62" rx="6" ry="4" fill="#fff" opacity=".55"/><ellipse cx="64" cy="64" rx="6" ry="4" fill="#fff" opacity=".55"/>`),
+ diamante:V(`<path d="M22 14h56l18 24-46 52L4 38z" fill="url(#d1)" stroke="#0a5d99" stroke-width="3" stroke-linejoin="round"/><path d="M4 38h92M36 14l-10 24 24 52 24-52-10-24M26 38L50 14l24 24" fill="none" stroke="#e8fbff" stroke-width="2.5" stroke-linejoin="round" opacity=".85"/>`),
+ espadilha:V(`<path d="M50 6C70 28 92 40 92 60c0 14-12 22-24 20-6-1-10-4-12-8 1 10 4 16 10 22H34c6-6 9-12 10-22-2 4-6 7-12 8-12 2-24-6-24-20 0-20 22-32 42-54z" fill="#1c1c24" stroke="#000" stroke-width="3"/><ellipse cx="34" cy="48" rx="6" ry="9" transform="rotate(25 34 48)" fill="#fff" opacity=".2"/>`)
+};
+const TIGER=`<ellipse cx="22" cy="26" rx="13" ry="13" fill="url(#gT)" stroke="#8a3a00" stroke-width="2"/><ellipse cx="22" cy="27" rx="6" ry="6" fill="#ffe3c2"/><ellipse cx="78" cy="26" rx="13" ry="13" fill="url(#gT)" stroke="#8a3a00" stroke-width="2"/><ellipse cx="78" cy="27" rx="6" ry="6" fill="#ffe3c2"/><ellipse cx="50" cy="52" rx="40" ry="36" fill="url(#gT)" stroke="#8a3a00" stroke-width="2.5"/><path d="M50 18v14M40 20l3 12M60 20l-3 12M12 48l14 3M12 58l14 0M88 48l-14 3M88 58l-14 0" stroke="#5a2300" stroke-width="4" stroke-linecap="round"/><ellipse cx="50" cy="68" rx="24" ry="18" fill="#fff6e6" stroke="#8a3a00" stroke-width="2"/><ellipse cx="34" cy="48" rx="8" ry="9" fill="#fff"/><ellipse cx="66" cy="48" rx="8" ry="9" fill="#fff"/><circle cx="35" cy="49" r="5" fill="#2a1200"/><circle cx="65" cy="49" r="5" fill="#2a1200"/><circle cx="37" cy="47" r="1.8" fill="#fff"/><circle cx="67" cy="47" r="1.8" fill="#fff"/><path d="M24 38q10-8 20-2M76 38q-10-8-20-2" stroke="#5a2300" stroke-width="3.5" fill="none" stroke-linecap="round"/><path d="M43 58q7-5 14 0l-7 8z" fill="#f08080" stroke="#8a3a00" stroke-width="1.5"/><path d="M50 66v6M36 72q14 14 28 0" fill="#c2242b" stroke="#5a2300" stroke-width="2.2" stroke-linejoin="round"/><path d="M22 22Q50-6 78 22L72 30H28Z" fill="url(#gR)" stroke="#7a0e15" stroke-width="2"/><rect x="26" y="26" width="48" height="6" rx="3" fill="url(#gG)"/><circle cx="50" cy="6" r="5" fill="url(#gG)"/>`;
+$('mascot').innerHTML=V(TIGER);
+const NOMES=['sete','coracao','cereja','diamante','espadilha'];
+let I,BETS=[],bi=0,busy=false,saldo=0,giros=0,rolos=['sete','cereja','diamante'];
+async function api(p,b){const r=await fetch(p,b===undefined?{credentials:'same-origin'}:{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});if(r.status===401){location.href='/';return{ok:false}}return r.json()}
+const bet=()=>BETS[bi],rnd=()=>NOMES[Math.floor(Math.random()*5)];
+function draw(r,win){$('slot').innerHTML=r.map((s,i)=>`<div class="reel ${win?'win':''}" id="r${i}">${SV[s]}</div>`).join('')}
+function refresh(){$('sal').textContent=money(saldo);$('apo').textContent=money(bet());$('bv').textContent=money(bet());$('gir').textContent=giros}
+function step(d){if(busy)return;bi=Math.min(BETS.length-1,Math.max(0,bi+d));refresh()}
+function maxBet(){if(busy)return;let k=0;BETS.forEach((v,i)=>{if(v<=saldo)k=i});bi=k;refresh()}
+async function spin(){if(busy)return;busy=true;$('go').disabled=true;$('err').style.display='none';$('msg').textContent='Girando…';$('ret').textContent=money(0);draw(rolos);
+ const tm=[0,1,2].map(i=>{$('r'+i).classList.add('spin');return setInterval(()=>{$('r'+i).innerHTML=SV[rnd()]},70)});
+ const [res]=await Promise.all([api('/api/slots/tigrinho/spin',{valor:bet()}),sleep(900)]);
+ if(!res.ok){tm.forEach(clearInterval);draw(rolos);const e=$('err');e.textContent=res.msg||'Erro.';e.style.display='block';$('msg').textContent='Faça sua aposta!';busy=false;$('go').disabled=false;return}
+ rolos=res.rolos;for(let i=0;i<3;i++){await sleep(420);clearInterval(tm[i]);const el=$('r'+i);el.classList.remove('spin');el.classList.add('land');el.innerHTML=SV[rolos[i]]}
+ await sleep(300);giros++;saldo=res.saldo;const net=res.premio-bet();
+ if(res.tipo==='tres'){draw(rolos,true);setTimeout(()=>ARTE.fx.bigWin(res.premio-bet(),bet(),money),500);$('msg').textContent='🎉 3 IGUAIS! Ganhou '+money(res.premio-bet())+' (x'+res.mult+')'}
+ else if(res.tipo==='par'){$('msg').textContent='2 iguais: devolvemos metade da aposta'}else $('msg').textContent='Todos diferentes. Tente de novo!';
+ $('ret').textContent=(net>=0?'+':'−')+money(Math.abs(net)).replace('R$ ','R$ ');refresh();busy=false;$('go').disabled=false}
+function help(){$('sheet').innerHTML=`<button class="x" onclick="modal.classList.remove('on')">✕</button><h3>Como jogar</h3><p>Escolha o valor da aposta e toque em <b>APOSTAR</b>. Cada rolo sorteia 1 de 5 símbolos.<br><b>3 iguais:</b> você recebe a aposta de volta mais o prêmio.<br><b>2 iguais:</b> você perde só metade da aposta.<br><b>Todos diferentes:</b> perde a aposta.</p>`+
+ NOMES.map((n,i)=>`<div class="pr">${SV[n]}${SV[n]}${SV[n]}<b>x${I.pay[i]}</b></div>`).join('')+`<div class="pr s">${SV.espadilha}${SV.espadilha}${SV.diamante}<b style="font-size:14px">devolve ½</b></div><div class="pr s">${SV.espadilha}${SV.coracao}${SV.diamante}<b style="font-size:14px">perde tudo</b></div><p style="font-size:11px;opacity:.7">Prêmio máximo limitado pela casa. Jogue com responsabilidade — +18.</p>`;$('modal').classList.add('on')}
+(async()=>{I=await api('/api/slots/tigrinho/info');if(!I.ok)return;saldo=I.saldo;BETS=[1,2,5,10,20,50,100,200,500].filter(v=>v>=I.min&&v<=I.max);draw(rolos);refresh()})();
+</script></body></html>
