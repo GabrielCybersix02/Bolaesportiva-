@@ -1,0 +1,2 @@
+Coloque aqui a imagem de FUNDO do jogo "Tigrinho 777" (ex.: fundo.jpg, vertical 1080x1920).
+Se esta pasta ficar só com este texto, o jogo usa o fundo colorido padrão.
