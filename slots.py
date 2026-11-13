@@ -6,7 +6,7 @@ import json, math, os, secrets, time
 from math import comb
 from flask import jsonify, request, send_from_directory, session, redirect
 from datetime import datetime, timezone, timedelta
-VERSAO = "2026.11.12"        # sobe a cada pacote de arquivos; o lobby mostra para voce conferir se o servidor esta atualizado
+VERSAO = "2026.11.13"        # sobe a cada pacote de arquivos; o lobby mostra para voce conferir se o servidor esta atualizado
 
 RNG = secrets.SystemRandom()
 iso = lambda: datetime.now(timezone.utc).isoformat()
@@ -157,14 +157,18 @@ def register(app, db, raw, need, tx, err, cents, MAX_PREMIO, BASE):
     def _sem_cache_estatico(r):                      # arquivos .js/.css/.json do jogo nunca ficam velhos no celular
         if request.path.startswith("/static/") and request.path.rsplit(".", 1)[-1] in ("js", "css", "json", "html"): r.headers["Cache-Control"] = "no-cache"
         return r
-    @app.get("/api/skins")                           # lista as imagens em static/img/<jogo>/ (arte realista que voce colocar la entra sozinha)
-    @need("usuario")
-    def skins(u):
-        raiz = os.path.join(BASE, "static", "img"); out = {}
+    @app.get("/api/skins")                           # lista os arquivos de static/img/<jogo>/{icones,capa,mascote,fundo}/ (a arte que voce colocar la entra sozinha)
+    def skins():
+        raiz = os.path.join(BASE, "static", "img"); out = {}; ok = ("png", "webp", "jpg", "jpeg", "avif", "gif", "svg")
         if os.path.isdir(raiz):
             for d in sorted(os.listdir(raiz)):
                 p = os.path.join(raiz, d)
-                if os.path.isdir(p): out[d] = sorted(f for f in os.listdir(p) if f.rsplit(".", 1)[-1].lower() in ("png", "webp", "jpg", "jpeg", "avif", "svg"))
+                if not os.path.isdir(p): continue
+                g = {}
+                for sub in ("icones", "capa", "mascote", "fundo"):
+                    sp = os.path.join(p, sub)
+                    if os.path.isdir(sp): g[sub] = [dict(f=f, t=int(os.path.getmtime(os.path.join(sp, f)))) for f in sorted(os.listdir(sp)) if f.rsplit(".", 1)[-1].lower() in ok]
+                out[d] = g
         return jsonify(ok=True, skins=out)
     @app.get("/api/slots/destaques")                 # maiores prêmios das últimas 24h (dados reais, nome mascarado)
     @need("usuario")
