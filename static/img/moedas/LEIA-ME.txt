@@ -1,0 +1,32 @@
+JOGO: Moedas Mágicas   (id: moedas)
+========================================
+
+Como trocar a arte (direto no GitHub, sem mexer em código):
+
+1) CAPA (cartão do jogo no cassino)  ->  pasta  capa/
+   Envie a imagem nova (png, jpg ou webp). Pode ser a arte inteira do cartão.
+   IMPORTANTE: se a capa for uma foto/arte completa, ela já deve ter o NOME do jogo desenhado - o site não escreve o nome por cima.
+   Tamanho ideal: 800x720.
+
+2) MASCOTE (a figura grande no topo do jogo)  ->  pasta  mascote/
+   Envie a imagem nova (png com fundo transparente é o melhor). Tamanho ideal: 800x800.
+
+3) ÍCONES (símbolos que giram nos rolos)  ->  pasta  icones/
+   O NÚMERO no começo do nome diz qual símbolo a imagem substitui:
+     01 = símbolo mais fraco (ferradura)
+     02 = símbolo comum (trevo)
+     03 = símbolo comum (notas)
+     04 = símbolo comum (saco)
+     05 = símbolo comum (barras)
+     06 = símbolo mais valioso (trofeu)
+     07 = WILD (curinga: substitui os outros)
+   Para trocar o 03, envie por exemplo  03_meu_icone.png  (512x512, fundo transparente).
+
+4) FUNDO (cenário atrás do jogo)  ->  pasta  fundo/   (1080x1920)
+
+REGRAS:
+ - Os arquivos .svg que já estão nas pastas são a arte PADRÃO. Se você enviar um .png/.jpg/.webp na mesma pasta (para o mesmo número), a sua imagem passa a valer.
+ - Deixe só UMA imagem sua por item (se tiver duas, vale a mais recente).
+ - Para voltar ao padrão, apague a sua imagem.
+ - Depois de enviar, o Render atualiza sozinho em ~2 minutos.
+ - Veja tudo no painel:  /static/painel_arte.html
