@@ -24,7 +24,7 @@ h4{margin:14px 0 8px;font-size:13px;color:#ffd45a;letter-spacing:.5px;text-trans
 .card:active{transform:scale(.97)}.card::before{content:"";position:absolute;left:50%;top:38%;width:230%;aspect-ratio:1;margin-left:-115%;margin-top:-115%;background:repeating-conic-gradient(#ffffff26 0 7deg,#0000 7deg 14deg);-webkit-mask:radial-gradient(circle,#000 6%,transparent 38%);mask:radial-gradient(circle,#000 6%,transparent 38%);animation:rr 50s linear infinite}@keyframes rr{to{transform:rotate(360deg)}}
 .card::after{content:"";position:absolute;inset:0;background:linear-gradient(#0000 55%,#000a)}
 .card .art{position:absolute;left:14%;right:14%;top:5%;bottom:24%;z-index:1;filter:drop-shadow(0 8px 6px #0008)}.card .art svg,.card .art img{width:100%;height:100%;object-fit:contain;overflow:visible}.card .em{position:absolute;top:12%;font-size:62px;z-index:1}
-.card.cheio .art{left:0;right:0;top:0;bottom:0}.card.cheio .art img{object-fit:cover}
+.card.cheio .art{left:0;right:0;top:0;bottom:0}.card.cheio .art img{object-fit:cover}.card.cheio::after{background:linear-gradient(#0000 80%,#0006)}
 .card .nm{position:relative;z-index:2;font-family:'Lilita One',Impact,sans-serif;font-size:20px;line-height:1;padding:0 8px 10px;background:linear-gradient(#fffbd0,#ffd23a 55%,#e0861a);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:.8px #5a2a00;filter:drop-shadow(0 2px 0 #5a2a00)}
 .star{position:absolute;top:8px;left:8px;z-index:3;width:32px;height:32px;border-radius:50%;background:#0007;display:grid;place-items:center;font-size:16px;color:#ffffffcc;border:0}.star.on{color:#ffd45a;background:#000a}
 .tag{position:absolute;top:9px;right:9px;z-index:3;background:linear-gradient(#fff,#ffe4f3);color:#c2127f;font-size:10px;font-weight:900;padding:3px 8px;border-radius:99px;box-shadow:0 2px 6px #0005}
@@ -50,8 +50,8 @@ const ls=(k,d)=>{try{return JSON.parse(localStorage.getItem(k)||d)}catch(e){retu
 const favs=()=>ls('fav','[]');
 function toggleFav(id,ev){ev.stopPropagation();let f=favs();f=f.includes(id)?f.filter(x=>x!==id):[...f,id];sv('fav',f);render()}
 function abrir(id){let r=ls('rec','[]').filter(x=>x!==id);r.unshift(id);sv('rec',r.slice(0,8));location.href='/slots/jogo/'+id}
-function card(g){const T=ARTE.TEMAS[g.id],c1=T?T.b1:g.c1,c2=T?T.b2:g.c2,sk=SK[g.id],cheia=!!(sk&&sk.capa),art=cheia?`<img src="${sk.capa}" alt="">`:ARTE.capa(g.id);
- return `<div class="card ${cheia?'cheio':''}" style="background:radial-gradient(circle at 50% 35%,${c1},${c2})" onclick="abrir('${g.id}')"><button class="star ${favs().includes(g.id)?'on':''}" onclick="toggleFav('${g.id}',event)">${favs().includes(g.id)?'★':'☆'}</button>${g.tag?`<div class="tag">${g.tag}</div>`:''}${art?`<div class="art">${art}</div>`:`<div class="em">${g.emoji}</div>`}<div class="nm">${g.nome}</div></div>`}
+function card(g){const T=ARTE.TEMAS[g.id],c1=T?T.b1:g.c1,c2=T?T.b2:g.c2,sk=SK[g.id],full=!!(sk&&sk.capa&&sk.capaFull),art=(sk&&sk.capa)?`<img src="${sk.capa}" alt="">`:ARTE.capa(g.id);
+ return `<div class="card ${full?'cheio':''}" style="background:radial-gradient(circle at 50% 35%,${c1},${c2})" onclick="abrir('${g.id}')"><button class="star ${favs().includes(g.id)?'on':''}" onclick="toggleFav('${g.id}',event)">${favs().includes(g.id)?'★':'☆'}</button>${g.tag?`<div class="tag">${g.tag}</div>`:''}${art?`<div class="art">${art}</div>`:`<div class="em">${g.emoji}</div>`}${full?'':`<div class="nm">${g.nome}</div>`}</div>`}
 function render(){const q=($('q').value||'').trim().toLowerCase(),f=favs();
  $('tabs').innerHTML=CATS.map(([k,n])=>`<button class="${k===cat?'on':''}" onclick="cat='${k}';render()">${n}</button>`).join('');
  let L=J.filter(g=>(cat==='todos'||(cat==='fav'?f.includes(g.id):g.cat===cat))&&(!q||g.nome.toLowerCase().includes(q)));

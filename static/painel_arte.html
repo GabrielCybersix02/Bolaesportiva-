@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Painel de arte • Bola Esportiva</title><meta name="robots" content="noindex">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}body{margin:0;font-family:Inter,system-ui,sans-serif;background:#120a24;color:#fff;padding:14px 14px 50px;max-width:640px;margin:0 auto}
+h1{font-size:21px;margin:6px 0 2px}p,li{font-size:13px;line-height:1.55;opacity:.8}ol{padding-left:18px;margin:6px 0 12px}
+.repo{display:flex;gap:8px;margin:10px 0}.repo input{flex:1;min-width:0;background:#ffffff14;border:1.5px solid #ffffff2a;border-radius:12px;padding:10px 12px;color:#fff;font-size:13px;outline:0}
+input.q{width:100%;background:#ffffff14;border:1.5px solid #ffffff2a;border-radius:12px;padding:11px 14px;color:#fff;font-size:15px;outline:0;margin-bottom:10px}
+.g{background:linear-gradient(145deg,#ffffff14,#ffffff08);border:1px solid #ffffff22;border-radius:18px;padding:12px;margin-top:12px}
+.top{display:flex;gap:12px;align-items:center}.cv{width:110px;height:100px;border-radius:14px;overflow:hidden;flex:none;position:relative;display:grid;place-items:center;box-shadow:inset 0 0 0 2px #ffffff30}.cv svg,.cv img{width:80%;height:80%;object-fit:contain}.cv.full img{width:100%;height:100%;object-fit:cover}
+.nm b{display:block;font-size:16px}.nm small{opacity:.6;font-size:11px}
+.row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}.lb{font-size:11px;color:#ffd45a;font-weight:800;width:62px;flex:none}
+.mk{width:54px;height:54px;border-radius:12px;background:#1d1236;display:grid;place-items:center;flex:none}.mk svg,.mk img{width:44px;height:44px;object-fit:contain}
+.ic{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;flex:1}.ic::-webkit-scrollbar{display:none}.ic div{position:relative;flex:none;width:46px;height:46px;border-radius:10px;background:#1d1236;display:grid;place-items:center}.ic svg,.ic img{width:36px;height:36px;object-fit:contain}.ic i{position:absolute;top:-4px;left:-2px;font-style:normal;font-size:9px;background:#ffd45a;color:#000;border-radius:99px;padding:0 4px;font-weight:900}
+.st{font-size:10px;font-weight:800;padding:2px 8px;border-radius:99px;background:#ffffff1a}.st.on{background:#16a34a}
+.bt{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.bt a{flex:1 1 calc(50% - 6px);text-align:center;text-decoration:none;color:#fff;background:linear-gradient(#e6168f,#b8127a);border-radius:10px;padding:10px 6px;font-size:12px;font-weight:800}.bt a.o{background:#ffffff1a}
+code{background:#0006;padding:1px 6px;border-radius:6px;font-size:11px;word-break:break-all}
+</style></head><body>
+<svg width="0" height="0" style="position:absolute"><defs id="defs"></defs></svg>
+<h1>🎨 Painel de arte dos jogos</h1>
+<p>Aqui você vê a arte de cada jogo e abre a pasta certa no GitHub para trocar.</p>
+<ol><li>Toque no botão do que quer trocar (capa, mascote, ícones ou fundo).</li><li>No GitHub, arraste a imagem nova e toque em <b>Commit changes</b>.</li><li>Em ~2 minutos o Render atualiza e a arte nova aparece no jogo.</li></ol>
+<div class="repo"><input id="repo" placeholder="https://github.com/usuario/repositorio"></div>
+<input class="q" id="q" placeholder="Buscar jogo…" oninput="r()">
+<div id="o"></div>
+<script src="/static/arte.js"></script>
+<script>
+const $=i=>document.getElementById(i);const EX={tigrinho:'Tigrinho 777',aviator:'Aviator',mines:'Mines'};
+const ids=[...Object.keys(ARTE.TEMAS),...Object.keys(EX)],nome=id=>ARTE.TEMAS[id]?ARTE.TEMAS[id].nome:EX[id];
+const rp=$('repo');try{rp.value=localStorage.getItem('repo')||'https://github.com/GabrielCybersix02/Bolaesportiva-'}catch(e){rp.value='https://github.com/GabrielCybersix02/Bolaesportiva-'}
+rp.oninput=()=>{try{localStorage.setItem('repo',rp.value)}catch(e){}r()};
+let S={},SK={};
+const url=(id,pasta)=>rp.value.replace(/\/+$/,'')+'/upload/main/static/img/'+id+'/'+pasta;
+const custom=(id,pasta)=>((S[id]||{})[pasta]||[]).some(x=>!/\.svg$/i.test(x.f));
+const builtinIc=id=>{const T=ARTE.TEMAS[id];if(T){const a=ARTE.aplicar(T);return T.kind==='linhas'?[...a.SY,a.W]:a.SY}const L=ARTE.L;return id==='tigrinho'?[L.sete('#e11d2e'),L.coracao('#ff3b52'),L.cereja('#ff2d4a'),L.gema('#35c9ff'),L.espadilha()]:[]};
+const builtinMk=id=>{const T=ARTE.TEMAS[id];if(T&&(T.mk||T.wild))return ARTE.aplicar(T).MASC;return id==='tigrinho'?ARTE.M('tigre'):null};
+function r(){const q=$('q').value.toLowerCase();$('o').innerHTML=ids.filter(id=>!q||nome(id).toLowerCase().includes(q)||id.includes(q)).map(id=>{const T=ARTE.TEMAS[id],sk=SK[id],c1=T?T.b1:'#2563eb',c2=T?T.b2:'#0b2a6b',full=sk&&sk.capa&&sk.capaFull;
+ const capa=sk&&sk.capa?`<img src="${sk.capa}">`:ARTE.capa(id)||'',mk=sk&&sk.mascote?`<img src="${sk.mascote}">`:builtinMk(id),ic=builtinIc(id).map((s,i)=>sk&&sk.sym[i]?`<img src="${sk.sym[i]}">`:s);
+ const b=(p,t,o)=>`<a class="${o?'o':''}" target="_blank" href="${url(id,p)}">${t}</a>`;
+ return `<div class="g"><div class="top"><div class="cv ${full?'full':''}" style="background:radial-gradient(circle at 50% 35%,${c1},${c2})">${capa}</div><div class="nm"><b>${nome(id)}</b><small>id: ${id}</small><div style="margin-top:6px"><span class="st ${custom(id,'capa')?'on':''}">capa ${custom(id,'capa')?'sua':'padrão'}</span></div></div></div>
+ ${mk?`<div class="row"><span class="lb">MASCOTE</span><div class="mk">${mk}</div><span class="st ${custom(id,'mascote')?'on':''}">${custom(id,'mascote')?'seu':'padrão'}</span></div>`:''}
+ ${ic.length?`<div class="row"><span class="lb">ÍCONES</span><div class="ic">${ic.map((s,i)=>`<div><i>${String(i+1).padStart(2,'0')}</i>${s}</div>`).join('')}</div></div>`:''}
+ <div class="bt">${b('capa','🖼 Trocar capa')}${mk?b('mascote','🐯 Trocar mascote'):''}${ic.length?b('icones','🎲 Trocar ícones'):''}${b('fundo','🌄 Trocar fundo',1)}</div></div>`}).join('');ARTE.injetar()}
+(async()=>{try{S=(await ARTE.skins())||{};for(const id of ids)SK[id]=await ARTE.skin(id)}catch(e){}r()})();
+</script></body></html>
